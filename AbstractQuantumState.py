@@ -4,13 +4,13 @@ import torch as pt
 
 class AbstractQuantumStates(ABC):
     # we pass the number of qubits N
-    def __init__(self, N):
-        self.N = N
+    def __init__(self, n):
+        self.n = n
 
 
     # measuring amplitude with respect to some basis vector
     @abstractmethod
-    def amplitude(self, basis_idx: pt.Tensor) -> float:
+    def amplitude(self, basis_idx: pt.Tensor) -> pt.tensor:
         pass
 
     # probability of measuring our quantum state in a certain basis vector state
