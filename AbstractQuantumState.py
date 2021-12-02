@@ -34,7 +34,7 @@ class AbstractQuantumStates(ABC):
 
     # here we rotate first and then do a measurement in the computational basis
     @abstractmethod
-    def measure_pauli(self, pauli_string: dict) -> dict:
+    def measure_pauli(self, pauli_string: dict, batch_size: int) -> dict:
         pass
 
     # apply a string of single qubit clifford gates
