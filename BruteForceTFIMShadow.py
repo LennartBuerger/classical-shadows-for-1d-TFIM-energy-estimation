@@ -6,12 +6,10 @@ import math
 class BFQuantumState(AbstractQuantumState.AbstractQuantumStates):
 
     # we pass the number of qubits N and our Quantum State Psi
-    def __init__(self, nqb, psi):
-        self.nqb = nqb
-        if psi == None:
-            Psi_real = pt.rand(nq ** 2, dtype= pt.cfloat)
-            Psi_img = pt.rand(nq ** 2, dtype = pt.cfloat)
-            self.psi_not_normed = Psi_real + Psi_img * 1j
+    def __init__(self, qubit_num, psi):
+        super(BFQuantumState, self).__init__(qubit_num)
+        if psi is None:
+            self.psi_not_normed = pt.rand(2** self.qubit_num, dtype=pt.cfloat)
             self.psi = self.psi_not_normed / pt.sqrt(self.psi_not_normed @ pt.conj(self.psi_not_normed))
         else:
             self.psi = psi
@@ -42,7 +40,7 @@ class BFQuantumState(AbstractQuantumState.AbstractQuantumStates):
     def measure(self, batch_size: int) -> dict:
         # to perform the measurement we first generate a multinomial probability distribution from our known state
         # from which we sample afterwards
-        distribution = pt.empty(self.nqb ** 2, dtype=float)
+        distribution = pt.empty(2 ** self.qubit_num, dtype=float)
         distribution: float = self.psi * pt.conj(self.psi)
         sampled_basisvec = pt.multinomial(distribution.real, batch_size, replacement=True)
         sample_probs = dict([])
@@ -62,7 +60,7 @@ class BFQuantumState(AbstractQuantumState.AbstractQuantumStates):
         z_rot = identity
         y_rot = 1 / math.sqrt(2) * pt.tensor([[1, 1j], [1, -1j]], dtype=pt.cfloat)
         matrix_rot = pt.tensor([1], dtype=pt.cfloat)
-        for i in range(1, self.nqb + 1):
+        for i in range(1, self.qubit_num + 1):
             if i in pauli_string:
                 matrix_append = identity
                 if pauli_string[i] == 'X':
@@ -97,7 +95,7 @@ class BFQuantumState(AbstractQuantumState.AbstractQuantumStates):
 
         matrix_rot = pt.tensor([1], dtype=pt.cfloat)
 
-        for i in range(1, self.nqb + 1):
+        for i in range(1, self.qubit_num + 1):
             if i in clifford_string:
                 matrix_append = identity
                 if clifford_string[i] == 'X':
@@ -118,20 +116,24 @@ class BFQuantumState(AbstractQuantumState.AbstractQuantumStates):
 
 
 # down here comes testing rubbish which can be removed later
+def main():
+    # specify number of qubits
+    nq = 4
 
-# specify number of qubits
-nq = 2
+    # first generate a random quantum state Psi which we normalize
+    Psi_real = pt.rand(2 ** nq)
+    Psi_img = pt.rand(2 ** nq)
+    psi = Psi_real + Psi_img * 1j             #1/math.sqrt(2) * pt.tensor([1, 1j], dtype=pt.cfloat)          #
+    norm = BFQuantumState(nq, psi).norm
+    psi = psi / norm
+    #basisbla = pt.tensor([0, 1, 2, 3])
+    print(psi)
+    #print(BFQuantumState(nq, psi).prob(basisbla))
+    #print(BFQuantumState(nq, psi).amplitude(basisbla))
+    print(BFQuantumState(nq,None).norm)
+    print(BFQuantumState(nq, None).apply_clifford({1: 'X', 2: 'H'}))
+    print(BFQuantumState(nq,psi).measure_pauli({1: 'X', 2: 'Z'}, 10))
 
-# first generate a random quantum state Psi which we normalize
-Psi_real = pt.rand(nq ** 2)
-Psi_img = pt.rand(nq ** 2)
-psi = Psi_real + Psi_img * 1j             #1/math.sqrt(2) * pt.tensor([1, 1j], dtype=pt.cfloat)          #
-norm = BFQuantumState(nq, psi).norm
-psi = psi / norm
-#basisbla = pt.tensor([0, 1, 2, 3])
-print(psi)
-#print(BFQuantumState(nq, psi).prob(basisbla))
-#print(BFQuantumState(nq, psi).amplitude(basisbla))
-print(BFQuantumState(nq,None).norm)
-print(BFQuantumState(nq, None).apply_clifford({1: 'X', 2: 'H'}))
-print(BFQuantumState(nq,psi).measure_pauli({1: 'X', 2: 'Z'}, 10))
+
+if __name__ == '__main__':
+    main()

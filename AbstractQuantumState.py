@@ -4,8 +4,8 @@ import torch as pt
 
 class AbstractQuantumStates(ABC):
     # we pass the number of qubits N
-    def __init__(self, n):
-        self.n = n
+    def __init__(self, qubit_num):
+        self.qubit_num = qubit_num
 
 
     # measuring amplitude with respect to some basis vector
