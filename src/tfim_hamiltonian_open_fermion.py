@@ -123,7 +123,9 @@ def main():
     qubit_num: int = 12
 
     #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
-    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'open').ground_state_energy_theo())
+    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
+
+    print(TfimHamiltonianOpenFermion(20, 1, 1, 'periodic').diagonalize(2, True))
 
 
 if __name__ == '__main__':
