@@ -39,6 +39,18 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
             eigenvalues, _ = scipy.sparse.linalg.eigsh(self.to_matrix(), which='SA', k=nr_eigs)
             return eigenvalues
 
+    def ground_state_energy(self) -> pt.double:
+        return self.diagonalize(1, False)
+
+    def energy_eigenvalues_theo(self, k_val) -> pt.double:
+        return 2 * np.abs(self.J) * np.sqrt((np.cos(k_val) - np.abs(self.h / self.J))**2 + np.sin(k_val)**2)
+
+    def ground_state_energy_theo(self) -> pt.double:
+        n_vals = pt.linspace(1, self.qubit_num / 2, int(self.qubit_num / 2))
+        k_vals = (2 * n_vals - pt.ones(int(self.qubit_num / 2))) * pt.pi / self.qubit_num
+        energy_eigenvalues = 2 * self.J * pt.sqrt((pt.cos(k_vals) - self.h / self.J) ** 2 + pt.sin(k_vals) ** 2)
+        return pt.sum(energy_eigenvalues)
+
     # for h/j < 1 the energy gap is given by E_gap = E_0 - E_2 and for h/j >= 1 by E_0 - E_1
     def energygap(self) -> pt.float:
         if self.h / self.J > 1:
@@ -108,13 +120,10 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
 
 
 def main():
-    qubit_num: int = 8
+    qubit_num: int = 12
 
-    ratios_h_j = np.array([0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100])
-    for i in range(0, np.size(ratios_h_j)):
-        print(TfimHamiltonianOpenFermion(12, ratios_h_j[i], 1, 'periodic').theo_energygap_finite_size())
-    n_vals = pt.linspace(1, 12 / 2, int(12 / 2))
-    print((2 * n_vals - pt.ones(int(12 / 2))) * pt.pi / 12)
+    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
+    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'open').ground_state_energy_theo())
 
 
 if __name__ == '__main__':
