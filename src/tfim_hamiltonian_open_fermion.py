@@ -52,14 +52,21 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
         return pt.sum(energy_eigenvalues)
 
     # for h/j < 1 the energy gap is given by E_gap = E_0 - E_2 and for h/j >= 1 by E_0 - E_1
-    def energygap(self) -> pt.float:
-        if self.h / self.J > 1:
-            eigenvalues = self.diagonalize(2, False)
-            energy_gap = eigenvalues[1] - eigenvalues[0]
+    def energygap(self, energy_eigenvalues) -> pt.float:
+        if energy_eigenvalues is None:
+            if self.h / self.J > 1:
+                eigenvalues = self.diagonalize(2, False)
+                energy_gap = eigenvalues[1] - eigenvalues[0]
+            else:
+                eigenvalues = self.diagonalize(3, False)
+                energy_gap = eigenvalues[2] - eigenvalues[0]
+            return np.abs(energy_gap)
         else:
-            eigenvalues = self.diagonalize(3, False)
-            energy_gap = eigenvalues[2] - eigenvalues[0]
-        return np.abs(energy_gap)
+            if self.h / self.J > 1:
+                energy_gap = energy_eigenvalues[1] - energy_eigenvalues[0]
+            else:
+                energy_gap = energy_eigenvalues[2] - energy_eigenvalues[0]
+            return np.abs(energy_gap)
 
     # for infintely long chain
     def theoretical_energygap(self) -> pt.float:
@@ -125,7 +132,7 @@ def main():
     #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
     #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
 
-    print(TfimHamiltonianOpenFermion(20, 1, 1, 'periodic').diagonalize(2, True))
+    TfimHamiltonianOpenFermion(24, 1, 1, 'periodic').diagonalize(2, True)
 
 
 if __name__ == '__main__':
