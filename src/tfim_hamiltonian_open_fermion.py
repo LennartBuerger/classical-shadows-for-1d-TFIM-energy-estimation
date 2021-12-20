@@ -43,7 +43,7 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
         return self.diagonalize(1, False)
 
     def energy_eigenvalues_theo(self, k_val) -> pt.double:
-        return 2 * np.abs(self.J) * np.sqrt((np.cos(k_val) - np.abs(self.h / self.J)) ** 2 + np.sin(k_val) ** 2)
+        return 2 * np.abs(self.J) * np.sqrt((np.cos(k_val) - np.abs(self.h / self.J))**2 + np.sin(k_val)**2)
 
     def ground_state_energy_theo(self) -> pt.double:
         n_vals = pt.linspace(1, self.qubit_num / 2, int(self.qubit_num / 2))
@@ -109,8 +109,8 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
                     z_string = 'Z' + str(i) + ' Z' + str(i + 1)
                 else:
                     z_string = None
-                ham = ham + QubitOperator(z_string, coefficient=self.J) + QubitOperator(x_string,
-                                                                                        coefficient=self.h)
+                ham = ham + QubitOperator(z_string, coefficient=-1 * self.J) + QubitOperator(x_string,
+                                                                                             coefficient=self.h)
             return opf_lin.get_sparse_operator(ham, n_qubits=self.qubit_num)
         if self.boundary_cond == 'periodic':
             for i in range(0, self.qubit_num):
@@ -121,16 +121,16 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
                     z_string = 'Z' + str(i) + ' Z' + str(0)
                 else:
                     z_string = None
-                ham = ham + QubitOperator(z_string, coefficient=self.J) + QubitOperator(x_string,
-                                                                                        coefficient=self.h)
+                ham = ham + QubitOperator(z_string, coefficient=-1 * self.J) + QubitOperator(x_string,
+                                                                                             coefficient=self.h)
             return opf_lin.get_sparse_operator(ham, n_qubits=self.qubit_num)
 
 
 def main():
     qubit_num: int = 12
 
-    # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
-    # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
+    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
+    #print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
 
     TfimHamiltonianOpenFermion(24, 1, 1, 'periodic').diagonalize(2, True)
 

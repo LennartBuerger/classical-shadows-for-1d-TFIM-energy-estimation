@@ -46,5 +46,5 @@ class AbstractQuantumState(ABC):
         pass
 
     @abstractmethod
-    def two_point_correlation(self, dist: int, basis: str) -> float:
+    def two_point_correlation(self, dist: int) -> float:
         pass
