@@ -78,32 +78,44 @@ class BFQuantumState(AbstractQuantumState):
             assert (0 <= partition_idx) and (partition_idx < self.qubit_num)
         a_qubit_num = partition_idx
         b_qubit_num = self.qubit_num - a_qubit_num
-
         psi_matrix = self.psi.reshape((2 ** a_qubit_num, 2 ** b_qubit_num))
         schmidt_coeffs = pt.linalg.svdvals(psi_matrix)
 
         return schmidt_coeffs ** 2
 
-    # entanglement entropy of arbitrary state, to get the entropy of the ground state we have to pass the ground state to our class
+    # entanglement entropy of arbitrary state, to get the entropy of the ground state we have to pass the ground
+    # state to our class
     def entanglement_entropy(self, partition_idx: int = None):
-        # procedure for computing the entropy: get Schmidt decomposition of Psi, then entropy is determined by schmidt coefficients
-        # first write Psi into matrix which is tensor product of state in system A and in system
+        # procedure for computing the entropy: get Schmidt decomposition of Psi, then entropy is determined by
+        # schmidt coefficients
         entan_spectrum = self.entan_spectrum(partition_idx=partition_idx)
         return -pt.sum(entan_spectrum * pt.log(entan_spectrum))
 
     # two point correlation of ground state for different distances and different ratios h/j
-    def two_point_correlation(self, dist: int) -> float:
-        z_string = 'Z0' + ' Z' + str(dist)
-        corr_operator = QubitOperator(z_string)
+    def two_point_correlation(self, dist: int, basis: str) -> float:
+        if basis == 'Z':
+            z_string = 'Z0' + ' Z' + str(dist)
+            corr_operator = QubitOperator(z_string)
+        if basis == 'XYZ':
+            z_string = 'Z0' + ' Z' + str(dist)
+            y_string = 'Y0' + ' Y' + str(dist)
+            x_string = 'X0' + ' X' + str(dist)
+            corr_operator = QubitOperator(z_string) + QubitOperator(y_string) + QubitOperator(x_string)
+        if basis == 'X':
+            x_string = 'X0' + ' X' + str(dist)
+            corr_operator = QubitOperator(x_string)
+        if basis == 'Y':
+            x_string = 'Y0' + ' Y' + str(dist)
+            corr_operator = QubitOperator(x_string)
         corr_operator_sparse = opf_lin.get_sparse_operator(corr_operator, n_qubits=self.qubit_num)
-        correlation: float = np.abs(float(pt.conj(self.psi) @ pt.tensor(corr_operator_sparse.dot(self.psi))))
-        return correlation
+        correlation = pt.conj(self.psi) @ pt.tensor(corr_operator_sparse.dot(self.psi))
+        return correlation.real
 
-    def correlation_length(self) -> int:
+    def correlation_length(self, basis) -> int:
         correlation_length = None
         dist = np.arange(0, self.qubit_num, 1)
         for i in range(0, np.size(dist)):
-            correlation = self.two_point_correlation(dist[i])
+            correlation = np.abs(self.two_point_correlation(dist[i], basis))
             if correlation <= np.exp(-1):
                 correlation_length = dist[i]
                 return correlation_length
