@@ -4,8 +4,9 @@ import constants
 import numpy as np
 from openfermion.ops import QubitOperator
 import openfermion.linalg as opf_lin
-from tfim_hamiltonian_open_fermion import TfimHamiltonianOpenFermion
 import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix
+from scipy.sparse import kron
 
 
 class BFQuantumState(AbstractQuantumState):
@@ -41,19 +42,29 @@ class BFQuantumState(AbstractQuantumState):
         sampled_indices = pt.multinomial(distribution.real, batch_size, replacement=True)
         existing_indices, counts = pt.unique(sampled_indices, return_counts=True)
         prob_index = counts / batch_size
-        print(sampled_indices)
         return existing_indices, prob_index
 
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
-
+    # we use sparse matrices to do the rotation since this way it can be done efficiently for more than 20 qubits
+    # e.g. a rotation in the X-basis would be given by H \tensor H |Psi> = I \tensor H * H \tensor I |Psi>
+    # which can be done really efficient using sparse matrices
     def rotate_pauli(self, pauli_string: dict):
-        matrix_rot = pt.tensor([1], dtype=self.dtype)
-        for i in range(0, self.qubit_num):
-            if i in pauli_string:
-                matrix_rot = pt.kron(matrix_rot, constants.PAULI_ROT[pauli_string[i]])
+        psi_rot = csr_matrix(self.psi)
+        counter = 0
+        for i in pauli_string:
+            matrix_rot = csr_matrix([1])
+            for j in range(0, self.qubit_num):
+                if j == i:
+                    matrix_rot = kron(matrix_rot, constants.PAULI_ROT_SPARSE[pauli_string[i]])
+                else:
+                    matrix_rot = kron(matrix_rot, constants.PAULI_ROT_SPARSE['I'])
+                matrix_rot.eliminate_zeros()
+            if counter == 0:
+                psi_rot = matrix_rot.dot(psi_rot.transpose())
+                counter = counter + 1
             else:
-                matrix_rot = pt.kron(matrix_rot, constants.PAULI['I'])
-        psi_rot = matrix_rot @ self.psi
+                psi_rot = matrix_rot.dot(psi_rot)
+        psi_rot = pt.flatten(pt.tensor(psi_rot.toarray()))
         return BFQuantumState(self.qubit_num, psi_rot)
 
     # here we rotate first and then do a measurement in the computational basis
@@ -133,12 +144,12 @@ class BFQuantumState(AbstractQuantumState):
 def main():
     # specify number of qubits
     nq = 12
+    pauli_str = {0: 'X', 1: 'X', 2: 'Y', 3: 'X'}
+    psi = pt.rand(2 ** 4, dtype=constants.DEFAULT_COMPLEX_TYPE)
+    print(BFQuantumState(4, psi).rotate_pauli_sparse(pauli_str))
+    print(BFQuantumState(4, psi).rotate_pauli(pauli_str))
 
-    #print(BFQuantumState(4, None).measure(10))
-    ground_state = TfimHamiltonianOpenFermion(nq, 5,
-                                              1, 'open').ground_state_wavevector()
-    correlation_length = BFQuantumState(nq, ground_state).correlation_length()
-    print(correlation_length)
+
 
 if __name__ == '__main__':
     main()
