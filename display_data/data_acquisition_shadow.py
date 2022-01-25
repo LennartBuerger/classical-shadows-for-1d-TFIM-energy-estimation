@@ -30,7 +30,7 @@ def derandomized_classical_shadow(all_observables, num_of_measurements_per_obser
     #
     #     all_observables: a list of Pauli observables, each Pauli observable is a list of tuple
     #                      of the form ("X", position) or ("Y", position) or ("Z", position)
-    #     num_of_measurements_per_observable: int for the number of measurement for each observable
+    #     num_of_measurements: int for the number of measurement for each observable
     #     system_size: int for how many qubits in the quantum system
     #     weight: None or a list of coefficients for each observable
     #             None -- neglect this parameter
