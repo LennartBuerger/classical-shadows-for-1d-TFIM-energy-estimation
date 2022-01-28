@@ -7,7 +7,7 @@ import scipy.sparse.linalg
 import numpy as np
 import matplotlib.pyplot as plt
 import constants
-from data_acquisition_shadow import derandomized_classical_shadow
+from data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
 from prediction_shadow import estimate_exp
 from bf_quantum_state import BFQuantumState
 
@@ -35,11 +35,7 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
     def energy_bf(self, psi: pt.tensor):
         return pt.conj(psi) @ pt.tensor(self.to_matrix().dot(psi), dtype=self.dtype)
 
-    def energy_shadow(self, psi: pt.tensor, num_of_measurements_per_observable: int):
-        global observables
-        if psi is None:
-            psi = self.ground_state_wavevector()
-        # first create observables.txt with all the terms in the Hamiltonian inside
+    def observables_for_energy_estimation(self):
         assert self.boundary_cond in TfimHamiltonianOpenFermion.BOUNDARY_CONDITIONS
         if self.boundary_cond == 'periodic':
             observables = []
@@ -53,48 +49,30 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
                     z_arr = None
                 observables.append(x_arr)
                 observables.append(z_arr)
-        # feed observables to derandomized classical shadow
-        measurement_procedure = derandomized_classical_shadow(observables,
-                                                              num_of_measurements_per_observable, self.qubit_num)
-        # convert the array measurement_procedure to array of dicts to have the right format for the measurement
-        measurement_procedure_dict = []
-        for i in range(0, len(measurement_procedure)):
-            pauli_dict = {}
-            for j in range(0, len(measurement_procedure[i])):
-                pauli_dict[j] = measurement_procedure[i][j]
-            measurement_procedure_dict.append(pauli_dict)
-        # now we apply the measurements to our state psi
-        measurement_index = []
-        for i in range(0, len(measurement_procedure_dict)):
-            measurement_index.append(BFQuantumState(self.qubit_num,
-                                                    psi).measure_pauli(measurement_procedure_dict[i], 1)[0])
-        # the measured index which is just a number has to be converted to the appropriate shape for prediction shadow
-        # which is e.g [[[X, 1],[Z, -1]],[[X, 1], [Z, 1]] etc. (this would correspond to the two measured states
-        # |01> and |00>
-        measurement_array_full = []
-        for i in range(0, len(measurement_index)):
-            measurement_dirac_rep = str(bin(measurement_index[i]))
-            measurement_array = np.array(list(measurement_dirac_rep))
-            measurement_array = np.delete(measurement_array, [0, 1])
-            if np.size(measurement_array) != self.qubit_num:
-                measurement_array = np.append(np.zeros(self.qubit_num - np.size(measurement_array)),
-                                              measurement_array)
-            measurement_array_full.append(measurement_array)
-        measurement = []
-        for i in range(0, len(measurement_procedure)):
-            measurement_part = []
-            for j in range(0, self.qubit_num):
-                if measurement_array_full[i][j] == '0':
-                    measured_value = 1
-                else:
-                    measured_value = -1
-                measurement_part.append([measurement_procedure[i][j], measured_value])
-            measurement.append(measurement_part)
-        # now we have our measurement outcome stored in measurement in the correct format
+        return observables
+
+# we either have to pass psi or measurement, when no measurement=None the method needs psi to do the measurement
+    def energy_shadow(self, psi: pt.tensor, num_of_measurements: int,
+                      measurement_method: str, measurement):
+        # the derandomization procedure makes to measurements per measurement_per_observable which is the input
+        # --> we divide by two to obtain the same number of measurements for randomized and derandomized
+        if measurement_method == 'derandomized':
+            num_of_measurements = num_of_measurements / 2
+        observables = self.observables_for_energy_estimation()
+        if measurement is None:
+            measurement = BFQuantumState(self.qubit_num,
+                                         psi).measurement_shadow(num_of_measurements,
+                                                                 measurement_method, observables)
+        # now we have our measurement outcome and our observables stored in the correct format
         energy = 0
         for i in range(0, len(observables)):
             sum_product, cnt_match = estimate_exp(measurement, observables[i])
-            expectation_val = sum_product / cnt_match
+            if sum_product == 0 and cnt_match == 0:
+                expectation_val = 0
+            elif cnt_match == 0 and sum_product != 0:
+                print('cnt_match is zero (problemo)!')
+            else:
+                expectation_val = sum_product / cnt_match
             if i % 2 == 0:
                 energy = energy + self.h * expectation_val
             else:
@@ -204,7 +182,9 @@ def main():
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
 
-    print(TfimHamiltonianOpenFermion(12, 0.5, 1, 'periodic').energy_shadow(None, 5))
+    print(TfimHamiltonianOpenFermion(8, 0.5,
+                                     1, 'periodic').energy_shadow(TfimHamiltonianOpenFermion(8,
+                                                                                             0.5, 1, 'periodic').ground_state_wavevector(), 10, 'randomized', None))
 
 
 if __name__ == '__main__':

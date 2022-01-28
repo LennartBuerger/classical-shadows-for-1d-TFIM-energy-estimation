@@ -7,6 +7,8 @@ import openfermion.linalg as opf_lin
 import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 from scipy.sparse import kron
+from data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
+from prediction_shadow import estimate_exp
 
 
 class BFQuantumState(AbstractQuantumState):
@@ -14,11 +16,7 @@ class BFQuantumState(AbstractQuantumState):
     def __init__(self, qubit_num, psi):
         super(BFQuantumState, self).__init__(qubit_num)
         self.dtype = constants.DEFAULT_COMPLEX_TYPE
-        if psi is None:
-            self.psi = pt.rand(2 ** self.qubit_num, dtype=self.dtype)
-            self.psi = self.psi / pt.linalg.norm(self.psi)
-        else:
-            self.psi = psi
+        self.psi = psi
 
     # measuring amplitude with respect to some basis vector
 
@@ -43,6 +41,50 @@ class BFQuantumState(AbstractQuantumState):
         existing_indices, counts = pt.unique(sampled_indices, return_counts=True)
         prob_index = counts / batch_size
         return existing_indices, prob_index
+
+    def measurement_shadow(self, num_of_measurements: int, measurement_method: str,
+                           observables):
+        # feed observables to derandomized classical shadow
+        if measurement_method == 'derandomized':
+            measurement_procedure = derandomized_classical_shadow(observables,
+                                                                  num_of_measurements, self.qubit_num)
+        if measurement_method == 'randomized':
+            measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
+        # convert the array measurement_procedure to array of dicts to have the right format for the measurement
+        measurement_procedure_dict = []
+        for i in range(0, len(measurement_procedure)):
+            pauli_dict = {}
+            for j in range(0, len(measurement_procedure[i])):
+                pauli_dict[j] = measurement_procedure[i][j]
+            measurement_procedure_dict.append(pauli_dict)
+        # now we apply the measurements to our state psi
+        measurement_index = []
+        for i in range(0, len(measurement_procedure_dict)):
+            measurement_index.append(self.measure_pauli(measurement_procedure_dict[i], 1)[0])
+        # the measured index which is just a number has to be converted to the appropriate shape for prediction shadow
+        # which is e.g [[[X, 1],[Z, -1]],[[X, 1], [Z, 1]] etc. (this would correspond to the two measured states
+        # |01> and |00>
+        measurement_array_full = []
+        for i in range(0, len(measurement_index)):
+            measurement_dirac_rep = str(bin(measurement_index[i]))
+            measurement_array = np.array(list(measurement_dirac_rep))
+            measurement_array = np.delete(measurement_array, [0, 1])
+            if np.size(measurement_array) != self.qubit_num:
+                measurement_array = np.append(np.zeros(self.qubit_num - np.size(measurement_array)),
+                                              measurement_array)
+            measurement_array_full.append(measurement_array)
+        measurement = []
+        for i in range(0, len(measurement_procedure)):
+            measurement_part = []
+            for j in range(0, self.qubit_num):
+                if measurement_array_full[i][j] == '0':
+                    measured_value = 1
+                else:
+                    measured_value = -1
+                measurement_part.append([measurement_procedure[i][j], measured_value])
+            measurement.append(measurement_part)
+        # now we have our measurement outcome stored in measurement in the correct format
+        return measurement
 
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
     # we use sparse matrices to do the rotation since this way it can be done efficiently for more than 20 qubits
@@ -102,6 +144,28 @@ class BFQuantumState(AbstractQuantumState):
         entan_spectrum = self.entan_spectrum(partition_idx=partition_idx)
         return -pt.sum(entan_spectrum * pt.log(entan_spectrum))
 
+    def two_point_correlation_shadow(self, num_of_measurements, measurement,
+                                     measurement_method: str, dist: int, basis: str):
+        if measurement_method == 'randomized':
+            if basis == 'Z':
+                observables = [[['Z', 0], ['Z', dist]]]
+
+        if measurement_method == 'derandomized':
+            if basis == 'Z':
+                observables = [[['Z', 0], ['Z', dist]]]
+                if measurement is None:
+                    measurement = self.measurement_shadow(num_of_measurements, 'derandomized', observables)
+
+        sum_product, cnt_match = estimate_exp(measurement, observables[0])
+        if sum_product == 0 and cnt_match == 0:
+            expectation_val = 0
+        elif cnt_match == 0 and sum_product != 0:
+            print('cnt_match is zero (problemo)!')
+        else:
+            expectation_val = sum_product / cnt_match
+        return expectation_val
+
+
     # two point correlation of ground state for different distances and different ratios h/j
     def two_point_correlation(self, dist: int, basis: str) -> float:
         if basis == 'Z':
@@ -134,20 +198,12 @@ class BFQuantumState(AbstractQuantumState):
         return correlation_length
 
 
-
-
-
-
-
-
 # down here comes testing rubbish which can be removed later
 def main():
     # specify number of qubits
     nq = 12
-    pauli_str = {0: 'X', 1: 'X', 2: 'Y', 3: 'X'}
-    psi = pt.rand(2 ** 4, dtype=constants.DEFAULT_COMPLEX_TYPE)
-    print(BFQuantumState(4, psi).rotate_pauli_sparse(pauli_str))
-    print(BFQuantumState(4, psi).rotate_pauli(pauli_str))
+
+    BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
 
 
 
