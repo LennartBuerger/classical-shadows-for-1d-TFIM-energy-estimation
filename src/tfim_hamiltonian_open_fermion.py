@@ -57,7 +57,7 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
         # the derandomization procedure makes to measurements per measurement_per_observable which is the input
         # --> we divide by two to obtain the same number of measurements for randomized and derandomized
         if measurement_method == 'derandomized':
-            num_of_measurements = num_of_measurements / 2
+            num_of_measurements = int(num_of_measurements / 2)
         observables = self.observables_for_energy_estimation()
         if measurement is None:
             measurement = BFQuantumState(self.qubit_num,
@@ -182,9 +182,8 @@ def main():
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
 
-    print(TfimHamiltonianOpenFermion(8, 0.5,
-                                     1, 'periodic').energy_shadow(TfimHamiltonianOpenFermion(8,
-                                                                                             0.5, 1, 'periodic').ground_state_wavevector(), 10, 'randomized', None))
+    print(TfimHamiltonianOpenFermion(4, 0, 1, 'periodic').ground_state_wavevector())
+
 
 
 if __name__ == '__main__':

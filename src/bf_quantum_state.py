@@ -32,6 +32,8 @@ class BFQuantumState(AbstractQuantumState):
         return pt.linalg.norm(self.psi)
 
     # measures state in computational basis, B is number of samples we take
+    # does NOT measure each qubit in the computational basis
+    # gives an index of the state our wavevector collapsed into
 
     def measure(self, batch_size: int) -> (pt.tensor, pt.tensor):
         # to perform the measurement we first generate a multinomial probability distribution from our known state
@@ -77,7 +79,7 @@ class BFQuantumState(AbstractQuantumState):
         for i in range(0, len(measurement_procedure)):
             measurement_part = []
             for j in range(0, self.qubit_num):
-                if measurement_array_full[i][j] == '0':
+                if measurement_array_full[i][j] == '0' or measurement_array_full[i][j] == '0.0':
                     measured_value = 1
                 else:
                     measured_value = -1
@@ -91,6 +93,13 @@ class BFQuantumState(AbstractQuantumState):
     # e.g. a rotation in the X-basis would be given by H \tensor H |Psi> = I \tensor H * H \tensor I |Psi>
     # which can be done really efficient using sparse matrices
     def rotate_pauli(self, pauli_string: dict):
+        # if there are only Z operators in the pauli string no rotation is done
+        for i in pauli_string:
+            if pauli_string[i] != 'Z':
+                break
+            if i == self.qubit_num:
+                return BFQuantumState(self.qubit_num, self.psi)
+
         psi_rot = csr_matrix(self.psi)
         counter = 0
         for i in pauli_string:
@@ -110,7 +119,7 @@ class BFQuantumState(AbstractQuantumState):
         return BFQuantumState(self.qubit_num, psi_rot)
 
     # here we rotate first and then do a measurement in the computational basis
-    def measure_pauli(self, pauli_string: dict, batch_size: int) -> dict:
+    def measure_pauli(self, pauli_string: dict, batch_size: int) -> (pt.tensor, pt.tensor):
         return self.rotate_pauli(pauli_string).measure(batch_size)
 
     # apply a string of single qubit clifford gates
@@ -203,7 +212,12 @@ def main():
     # specify number of qubits
     nq = 12
 
-    BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
+    # BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
+    # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
+    psi = pt.rand(4**2, dtype=constants.DEFAULT_COMPLEX_TYPE)
+    psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
+    print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
+    # print(BFQuantumState(4, psi).measure(10000))
 
 
 
