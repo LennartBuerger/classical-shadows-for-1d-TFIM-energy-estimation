@@ -91,31 +91,41 @@ class BFQuantumState(AbstractQuantumState):
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
     # we use sparse matrices to do the rotation since this way it can be done efficiently for more than 20 qubits
     # e.g. a rotation in the X-basis would be given by H \tensor H |Psi> = I \tensor H * H \tensor I |Psi>
-    # which can be done really efficient using sparse matrices
-    def rotate_pauli(self, pauli_string: dict):
-        # if there are only Z operators in the pauli string no rotation is done
-        for i in pauli_string:
-            if pauli_string[i] != 'Z':
-                break
-            if i == self.qubit_num:
-                return BFQuantumState(self.qubit_num, self.psi)
 
-        psi_rot = csr_matrix(self.psi)
-        counter = 0
+    def rotate_pauli(self, pauli_string: dict):
+        def apply_x(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            perm = pt.bitwise_xor(indices, 2 ** (qubit_num - qubit_idx - 1))
+            psi = psi[perm]
+            return psi
+
+        def apply_z(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            phase = (-1) ** (pt.bitwise_and(indices, 2 ** (qubit_num - qubit_idx - 1)) >> (qubit_num - qubit_idx - 1))
+            psi = phase * psi
+            return psi
+
+        def apply_x_rot(psi, qubit_num, qubit_idx):
+            psi = 1 / pt.sqrt(pt.tensor([2])) * (
+                    apply_x(psi, qubit_num, qubit_idx) + apply_z(psi, qubit_num, qubit_idx))
+            return psi
+
+        def apply_y_rot(psi, qubit_num, qubit_idx):
+            psi = 1 / (2 * pt.sqrt(pt.tensor([2]))) * ((1 + 1j) * psi + (1 - 1j) * apply_z(psi, qubit_num, qubit_idx)
+                                                       + (1 + 1j)
+                                                       * apply_x(apply_z(psi, qubit_num, qubit_idx),
+                                                                 qubit_num, qubit_idx)
+                                                       + (1 - 1j) * apply_x(psi, qubit_num, qubit_idx))
+            return psi
+
+        psi_rot = self.psi
         for i in pauli_string:
-            matrix_rot = csr_matrix([1])
-            for j in range(0, self.qubit_num):
-                if j == i:
-                    matrix_rot = kron(matrix_rot, constants.PAULI_ROT_SPARSE[pauli_string[i]])
-                else:
-                    matrix_rot = kron(matrix_rot, constants.PAULI_ROT_SPARSE['I'])
-                matrix_rot.eliminate_zeros()
-            if counter == 0:
-                psi_rot = matrix_rot.dot(psi_rot.transpose())
-                counter = counter + 1
-            else:
-                psi_rot = matrix_rot.dot(psi_rot)
-        psi_rot = pt.flatten(pt.tensor(psi_rot.toarray()))
+            if pauli_string[i] == 'X':
+                psi_rot = apply_x_rot(psi_rot, self.qubit_num, i)
+
+            if pauli_string[i] == 'Y':
+                psi_rot = apply_y_rot(psi_rot, self.qubit_num, i)
+
         return BFQuantumState(self.qubit_num, psi_rot)
 
     # here we rotate first and then do a measurement in the computational basis
@@ -174,7 +184,6 @@ class BFQuantumState(AbstractQuantumState):
             expectation_val = sum_product / cnt_match
         return expectation_val
 
-
     # two point correlation of ground state for different distances and different ratios h/j
     def two_point_correlation(self, dist: int, basis: str) -> float:
         if basis == 'Z':
@@ -214,11 +223,17 @@ def main():
 
     # BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
     # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
-    psi = pt.rand(4**2, dtype=constants.DEFAULT_COMPLEX_TYPE)
+    psi = pt.rand(2 ** 8, dtype=constants.DEFAULT_COMPLEX_TYPE)
     psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
-    print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
+    # psi = pt.tensor([1, 0, 0, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)
+    # print(BFQuantumState(2, psi).rotate_pauli_index({}, 1))
+    # print(BFQuantumState(2, psi).apply_x_pauli(1))
+    dictbla = {0: 'Y', 1: 'Y', 2: 'X', 3: 'Z', 4: 'Y', 6: 'X'}
+    dictZ = {0: 'Z', 1: 'Z', 2: 'Z', 3: 'Z', 4: 'Z', 6: 'Z'}
+    print(BFQuantumState(8, psi).rotate_pauli_index(dictZ))
+    print(BFQuantumState(8, psi).rotate_pauli(dictZ))
+    # print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
     # print(BFQuantumState(4, psi).measure(10000))
-
 
 
 if __name__ == '__main__':
