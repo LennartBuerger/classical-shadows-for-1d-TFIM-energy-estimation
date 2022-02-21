@@ -46,10 +46,20 @@ class BFQuantumState(AbstractQuantumState):
 
     def measurement_shadow(self, num_of_measurements: int, measurement_method: str,
                            observables):
-        # feed observables to derandomized classical shadow
+        # feed observables to derandomized classical shadow,
+        # the generation of a measurement procedure becomes very slow when num_of_measurements becomes big
+        # (~1000). In the case of the ising model it is alright to proceed by using batches because we only
+        # measure two different Pauli strings. We have to remove this batched procedure though when
+        # dealing with more complicated systems where we have to measure more than 100 different Pauli Strings
+        # for now we form batches of 100 measurements
         if measurement_method == 'derandomized':
-            measurement_procedure = derandomized_classical_shadow(observables,
-                                                                  num_of_measurements, self.qubit_num)
+            batch_size = 100
+            measurement_procedure = []
+            for i in range(0, int(num_of_measurements / batch_size)):
+                measurement_procedure_batch = derandomized_classical_shadow(observables,
+                                                                            int(batch_size / 2), self.qubit_num)
+                for j in range(0, batch_size):
+                    measurement_procedure.append(measurement_procedure_batch[j])
         if measurement_method == 'randomized':
             measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
         # convert the array measurement_procedure to array of dicts to have the right format for the measurement
@@ -93,16 +103,21 @@ class BFQuantumState(AbstractQuantumState):
     # e.g. a rotation in the X-basis would be given by H \tensor H |Psi> = I \tensor H * H \tensor I |Psi>
 
     def rotate_pauli(self, pauli_string: dict):
+        indices = pt.arange(2 ** self.qubit_num)
+        perm = []
+        for qubit_idx in range(0, self.qubit_num):
+            perm.append(pt.bitwise_xor(indices, 2 ** (self.qubit_num - qubit_idx - 1)))
+        phase = []
+        for qubit_idx in range(0, self.qubit_num):
+            phase.append((-1) ** (pt.bitwise_and(indices, 2 ** (self.qubit_num - qubit_idx - 1))
+                                  >> (self.qubit_num - qubit_idx - 1)))
+
         def apply_x(psi, qubit_num, qubit_idx):
-            indices = pt.arange(2 ** qubit_num)
-            perm = pt.bitwise_xor(indices, 2 ** (qubit_num - qubit_idx - 1))
-            psi = psi[perm]
+            psi = psi[perm[qubit_idx]]
             return psi
 
         def apply_z(psi, qubit_num, qubit_idx):
-            indices = pt.arange(2 ** qubit_num)
-            phase = (-1) ** (pt.bitwise_and(indices, 2 ** (qubit_num - qubit_idx - 1)) >> (qubit_num - qubit_idx - 1))
-            psi = phase * psi
+            psi = phase[qubit_idx] * psi
             return psi
 
         def apply_x_rot(psi, qubit_num, qubit_idx):
@@ -116,6 +131,54 @@ class BFQuantumState(AbstractQuantumState):
                                                        * apply_x(apply_z(psi, qubit_num, qubit_idx),
                                                                  qubit_num, qubit_idx)
                                                        + (1 - 1j) * apply_x(psi, qubit_num, qubit_idx))
+            return psi
+
+        psi_rot = self.psi
+        for i in pauli_string:
+            if pauli_string[i] == 'X':
+                psi_rot = apply_x_rot(psi_rot, self.qubit_num, i)
+
+            if pauli_string[i] == 'Y':
+                psi_rot = apply_y_rot(psi_rot, self.qubit_num, i)
+        return BFQuantumState(self.qubit_num, psi_rot)
+
+    def rotate_pauli_all_bitwise(self, pauli_string: dict):
+        def apply_x(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            perm = pt.bitwise_xor(indices, 2 ** (qubit_num - qubit_idx - 1))
+            psi = psi[perm]
+            return psi
+
+        def apply_z(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            phase = (-1) ** (pt.bitwise_and(indices, 2 ** (qubit_num - qubit_idx - 1)) >> (qubit_num - qubit_idx - 1))
+            psi = phase * psi
+            return psi
+
+        indices = pt.arange(2 ** self.qubit_num)
+
+        def apply_x_rot(psi, qubit_num, qubit_idx):
+            perm_zero = pt.bitwise_and(indices, pt.bitwise_not(pt.tensor([2 ** (qubit_num - 1 - qubit_idx)])))
+
+            perm_one = pt.bitwise_or(indices, 2 ** (qubit_num - 1 - qubit_idx))
+
+            phase_minus_one = (-1) ** (pt.bitwise_and(indices,
+                                                      2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
+
+            psi = 1 / pt.sqrt(pt.tensor([2])) * (psi[perm_zero] + phase_minus_one * psi[perm_one])
+            return psi
+
+        def apply_y_rot(psi, qubit_num, qubit_idx):
+            perm_zero = pt.bitwise_and(indices, pt.bitwise_not(pt.tensor([2 ** (qubit_num - 1 - qubit_idx)])))
+
+            perm_one = pt.bitwise_or(indices, 2 ** (qubit_num - 1 - qubit_idx))
+
+            phase_minus_one = (-1) ** (pt.bitwise_and(indices,
+                                                      2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
+
+            phase = (-1j) ** (pt.bitwise_and(indices,
+                                             2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
+            psi = 1 / pt.sqrt(pt.tensor([2])) * ((phase * psi)[perm_zero] + phase_minus_one * (phase * psi)[perm_one])
             return psi
 
         psi_rot = self.psi
@@ -223,17 +286,19 @@ def main():
 
     # BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
     # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
-    psi = pt.rand(2 ** 8, dtype=constants.DEFAULT_COMPLEX_TYPE)
+    psi = pt.rand(2 ** 6, dtype=constants.DEFAULT_COMPLEX_TYPE)
     psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
     # psi = pt.tensor([1, 0, 0, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)
     # print(BFQuantumState(2, psi).rotate_pauli_index({}, 1))
     # print(BFQuantumState(2, psi).apply_x_pauli(1))
-    dictbla = {0: 'Y', 1: 'Y', 2: 'X', 3: 'Z', 4: 'Y', 6: 'X'}
+    dictbla = {0: 'Z', 1: 'X', 2: 'Y', 3: 'Z', 4: 'Y', 5: 'X'}
     dictZ = {0: 'Z', 1: 'Z', 2: 'Z', 3: 'Z', 4: 'Z', 6: 'Z'}
-    print(BFQuantumState(8, psi).rotate_pauli_index(dictZ))
-    print(BFQuantumState(8, psi).rotate_pauli(dictZ))
+    # print(BFQuantumState(6, psi).rotate_pauli_all_bitwise(dictbla))
+    # print(BFQuantumState(6, psi).rotate_pauli(dictbla))
+    # print(BFQuantumState(6, psi).measurement_shadow(10000, 'derandomized', observables))
     # print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
     # print(BFQuantumState(4, psi).measure(10000))
+
 
 
 if __name__ == '__main__':
