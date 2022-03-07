@@ -107,47 +107,6 @@ class BFQuantumState(AbstractQuantumState):
         # e.g. [10, 52, 92, 0, 7, 17, 29, 13]
         return measurement_procedure, measurement_index
 
-    # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
-
-    def rotate_pauli_using_x_and_z(self, pauli_string: dict):
-        indices = pt.arange(2 ** self.qubit_num)
-        perm = []
-        phase = []
-        for qubit_idx in range(0, self.qubit_num):
-            perm.append(pt.bitwise_xor(indices, 2 ** (self.qubit_num - qubit_idx - 1)))
-            phase.append((-1) ** (pt.bitwise_and(indices, 2 ** (self.qubit_num - qubit_idx - 1))
-                                  >> (self.qubit_num - qubit_idx - 1)))
-
-        def apply_x(psi, qubit_num, qubit_idx):
-            psi = psi[perm[qubit_idx]]
-            return psi
-
-        def apply_z(psi, qubit_num, qubit_idx):
-            psi = phase[qubit_idx] * psi
-            return psi
-
-        def apply_x_rot(psi, qubit_num, qubit_idx):
-            psi = 1 / pt.sqrt(pt.tensor([2])) * (
-                    apply_x(psi, qubit_num, qubit_idx) + apply_z(psi, qubit_num, qubit_idx))
-            return psi
-
-        def apply_y_rot(psi, qubit_num, qubit_idx):
-            psi = 1 / (2 * pt.sqrt(pt.tensor([2]))) * ((1 + 1j) * psi + (1 - 1j) * apply_z(psi, qubit_num, qubit_idx)
-                                                       + (1 + 1j)
-                                                       * apply_x(apply_z(psi, qubit_num, qubit_idx),
-                                                                 qubit_num, qubit_idx)
-                                                       + (1 - 1j) * apply_x(psi, qubit_num, qubit_idx))
-            return psi
-
-        psi_rot = self.psi
-        for i in pauli_string:
-            if pauli_string[i] == 'X':
-                psi_rot = apply_x_rot(psi_rot, self.qubit_num, i)
-
-            if pauli_string[i] == 'Y':
-                psi_rot = apply_y_rot(psi_rot, self.qubit_num, i)
-        return BFQuantumState(self.qubit_num, psi_rot)
-
     def rotate_pauli(self, pauli_string: dict):
 
         def apply_x_rot(psi, qubit_num, qubit_idx):
@@ -162,55 +121,6 @@ class BFQuantumState(AbstractQuantumState):
                     BFQuantumState.phase_minus_one_dict[qubit_num][qubit_idx] *
                     (BFQuantumState.phase_i_dict[qubit_num][qubit_idx]
                      * psi)[BFQuantumState.perm_one_dict[qubit_num][qubit_idx]])
-
-        psi_rot = self.psi
-        for i in pauli_string:
-            if pauli_string[i] == 'X':
-                psi_rot = apply_x_rot(psi_rot, self.qubit_num, i)
-
-            if pauli_string[i] == 'Y':
-                psi_rot = apply_y_rot(psi_rot, self.qubit_num, i)
-
-        return BFQuantumState(self.qubit_num, psi_rot)
-
-    def rotate_pauli_all_bitwise(self, pauli_string: dict):
-        def apply_x(psi, qubit_num, qubit_idx):
-            indices = pt.arange(2 ** qubit_num)
-            perm = pt.bitwise_xor(indices, 2 ** (qubit_num - qubit_idx - 1))
-            psi = psi[perm]
-            return psi
-
-        def apply_z(psi, qubit_num, qubit_idx):
-            indices = pt.arange(2 ** qubit_num)
-            phase = (-1) ** (pt.bitwise_and(indices, 2 ** (qubit_num - qubit_idx - 1)) >> (qubit_num - qubit_idx - 1))
-            psi = phase * psi
-            return psi
-
-        indices = pt.arange(2 ** self.qubit_num)
-
-        def apply_x_rot(psi, qubit_num, qubit_idx):
-            perm_zero = pt.bitwise_and(indices, pt.bitwise_not(pt.tensor([2 ** (qubit_num - 1 - qubit_idx)])))
-
-            perm_one = pt.bitwise_or(indices, 2 ** (qubit_num - 1 - qubit_idx))
-
-            phase_minus_one = (-1) ** (pt.bitwise_and(indices,
-                                                      2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
-
-            psi = 1 / pt.sqrt(pt.tensor([2])) * (psi[perm_zero] + phase_minus_one * psi[perm_one])
-            return psi
-
-        def apply_y_rot(psi, qubit_num, qubit_idx):
-            perm_zero = pt.bitwise_and(indices, pt.bitwise_not(pt.tensor([2 ** (qubit_num - 1 - qubit_idx)])))
-
-            perm_one = pt.bitwise_or(indices, 2 ** (qubit_num - 1 - qubit_idx))
-
-            phase_minus_one = (-1) ** (pt.bitwise_and(indices,
-                                                      2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
-
-            phase = (-1j) ** (pt.bitwise_and(indices,
-                                             2 ** (qubit_num - 1 - qubit_idx)) >> (qubit_num - 1 - qubit_idx))
-            psi = 1 / pt.sqrt(pt.tensor([2])) * ((phase * psi)[perm_zero] + phase_minus_one * (phase * psi)[perm_one])
-            return psi
 
         psi_rot = self.psi
         for i in pauli_string:
