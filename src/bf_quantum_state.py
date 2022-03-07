@@ -83,6 +83,8 @@ class BFQuantumState(AbstractQuantumState):
         if measurement_method == 'derandomized':
             batch_size = 100
             measurement_procedure = []
+            # the derandomization procedure makes two measurements per measurement_per_observable which is the input
+            # --> we divide by two to obtain the same number of measurements for randomized and derandomized
             for i in range(0, int(num_of_measurements / batch_size)):
                 measurement_procedure_batch = derandomized_classical_shadow(observables,
                                                                             int(batch_size / 2), self.qubit_num)
