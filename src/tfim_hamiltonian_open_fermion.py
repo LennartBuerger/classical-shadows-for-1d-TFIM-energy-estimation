@@ -11,8 +11,6 @@ from data_acquisition_shadow import derandomized_classical_shadow, randomized_cl
 from prediction_shadow import estimate_exp
 from bf_quantum_state import BFQuantumState
 
-from abstract_quantum_state import AbstractQuantumState
-
 
 class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
     ENERGY_METHODS = ('BF', 'BF_shadow')
