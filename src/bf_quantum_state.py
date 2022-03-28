@@ -12,39 +12,11 @@ from prediction_shadow import estimate_exp
 
 
 class BFQuantumState(AbstractQuantumState):
-    perm_zero_dict = {}
-    perm_one_dict = {}
-    phase_minus_one_dict = {}
-    phase_i_dict = {}
-
     # we pass the number of qubits N and our Quantum State Psi
     def __init__(self, qubit_num, psi):
         super(BFQuantumState, self).__init__(qubit_num)
         self.dtype = constants.DEFAULT_COMPLEX_TYPE
         self.psi = psi
-        if self.qubit_num not in BFQuantumState.perm_zero_dict:
-            self.init_cached_perms_and_phases()
-
-    def init_cached_perms_and_phases(self):
-        perm_zero = []
-        perm_one = []
-        phase_minus_one = []
-        phase_i = []
-        indices = pt.arange(0, 2 ** self.qubit_num, 1)
-        for qubit_idx in range(0, self.qubit_num):
-            perm_zero.append(pt.bitwise_and(indices,
-                                            pt.bitwise_not(pt.tensor([2 ** (self.qubit_num - 1 - qubit_idx)]))))
-            perm_one.append(pt.bitwise_or(indices, 2 ** (self.qubit_num - 1 - qubit_idx)))
-            phase_minus_one.append((-1) ** (pt.bitwise_and(indices,
-                                                           2 ** (self.qubit_num - 1 - qubit_idx))
-                                            >> (self.qubit_num - 1 - qubit_idx)))
-            phase_i.append((-1j) ** (pt.bitwise_and(indices,
-                                                    2 ** (self.qubit_num - 1 - qubit_idx))
-                                     >> (self.qubit_num - 1 - qubit_idx)))
-        BFQuantumState.perm_zero_dict[self.qubit_num] = perm_zero
-        BFQuantumState.perm_one_dict[self.qubit_num] = perm_one
-        BFQuantumState.phase_i_dict[self.qubit_num] = phase_i
-        BFQuantumState.phase_minus_one_dict[self.qubit_num] = phase_minus_one
 
     # measuring amplitude with respect to some basis vector
 
@@ -74,22 +46,10 @@ class BFQuantumState(AbstractQuantumState):
 
     def measurement_shadow(self, num_of_measurements: int, measurement_method: str,
                            observables):
-        # feed observables to derandomized classical shadow,
-        # the generation of a measurement procedure becomes very slow when num_of_measurements becomes big
-        # (~1000). In the case of the ising model it is alright to proceed by using batches because we only
-        # measure two different Pauli strings. We have to remove this batched procedure though when
-        # dealing with more complicated systems where we have to measure more than 100 different Pauli Strings
-        # for now we form batches of 100 measurements
+        # feed observables to derandomized classical shadow
         if measurement_method == 'derandomized':
-            batch_size = 100
-            measurement_procedure = []
-            # the derandomization procedure makes two measurements per measurement_per_observable which is the input
-            # --> we divide by two to obtain the same number of measurements for randomized and derandomized
-            for i in range(0, int(num_of_measurements / batch_size)):
-                measurement_procedure_batch = derandomized_classical_shadow(observables,
-                                                                            int(batch_size / 2), self.qubit_num)
-                for j in range(0, batch_size):
-                    measurement_procedure.append(measurement_procedure_batch[j])
+            measurement_procedure = derandomized_classical_shadow(observables,
+                                                                  num_of_measurements, self.qubit_num)
         if measurement_method == 'randomized':
             measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
         # convert the array measurement_procedure to array of dicts to have the right format for the measurement
@@ -102,25 +62,61 @@ class BFQuantumState(AbstractQuantumState):
         # now we apply the measurements to our state psi
         measurement_index = []
         for i in range(0, len(measurement_procedure_dict)):
-            measurement_index.append(int(self.measure_pauli(measurement_procedure_dict[i], 1)[0]))
-        # returns one array with measurement basis, one array with the index of the measured state in the shape
-        # e.g. [10, 52, 92, 0, 7, 17, 29, 13]
-        return measurement_procedure, measurement_index
+            measurement_index.append(self.measure_pauli(measurement_procedure_dict[i], 1)[0])
+        # the measured index which is just a number has to be converted to the appropriate shape for prediction shadow
+        # which is e.g [[[X, 1],[Z, -1]],[[X, 1], [Z, 1]] etc. (this would correspond to the two measured states
+        # |01> and |00>
+        measurement_array_full = []
+        for i in range(0, len(measurement_index)):
+            measurement_dirac_rep = str(bin(measurement_index[i]))
+            measurement_array = np.array(list(measurement_dirac_rep))
+            measurement_array = np.delete(measurement_array, [0, 1])
+            if np.size(measurement_array) != self.qubit_num:
+                measurement_array = np.append(np.zeros(self.qubit_num - np.size(measurement_array)),
+                                              measurement_array)
+            measurement_array_full.append(measurement_array)
+        measurement = []
+        for i in range(0, len(measurement_procedure)):
+            measurement_part = []
+            for j in range(0, self.qubit_num):
+                if measurement_array_full[i][j] == '0' or measurement_array_full[i][j] == '0.0':
+                    measured_value = 1
+                else:
+                    measured_value = -1
+                measurement_part.append([measurement_procedure[i][j], measured_value])
+            measurement.append(measurement_part)
+        # now we have our measurement outcome stored in measurement in the correct format
+        return measurement
+
+    # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
+    # we use sparse matrices to do the rotation since this way it can be done efficiently for more than 20 qubits
+    # e.g. a rotation in the X-basis would be given by H \tensor H |Psi> = I \tensor H * H \tensor I |Psi>
 
     def rotate_pauli(self, pauli_string: dict):
+        def apply_x(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            perm = pt.bitwise_xor(indices, 2 ** (qubit_num - qubit_idx - 1))
+            psi = psi[perm]
+            return psi
+
+        def apply_z(psi, qubit_num, qubit_idx):
+            indices = pt.arange(2 ** qubit_num)
+            phase = (-1) ** (pt.bitwise_and(indices, 2 ** (qubit_num - qubit_idx - 1)) >> (qubit_num - qubit_idx - 1))
+            psi = phase * psi
+            return psi
 
         def apply_x_rot(psi, qubit_num, qubit_idx):
-            return 1 / pt.sqrt(pt.tensor([2])) * (psi[BFQuantumState.perm_zero_dict[qubit_num][qubit_idx]] +
-                                                  BFQuantumState.phase_minus_one_dict[qubit_num][qubit_idx]
-                                                  * psi[BFQuantumState.perm_one_dict[qubit_num][qubit_idx]])
+            psi = 1 / pt.sqrt(pt.tensor([2])) * (
+                    apply_x(psi, qubit_num, qubit_idx) + apply_z(psi, qubit_num, qubit_idx))
+            return psi
 
         def apply_y_rot(psi, qubit_num, qubit_idx):
-            return 1 / pt.sqrt(pt.tensor([2])) * \
-                   ((BFQuantumState.phase_i_dict[qubit_num][qubit_idx]
-                     * psi)[BFQuantumState.perm_zero_dict[qubit_num][qubit_idx]] +
-                    BFQuantumState.phase_minus_one_dict[qubit_num][qubit_idx] *
-                    (BFQuantumState.phase_i_dict[qubit_num][qubit_idx]
-                     * psi)[BFQuantumState.perm_one_dict[qubit_num][qubit_idx]])
+            psi = 1 / (2 * pt.sqrt(pt.tensor([2]))) * ((1 + 1j) * psi + (1 - 1j) * apply_z(psi, qubit_num, qubit_idx)
+                                                       + (1 + 1j)
+                                                       * apply_x(apply_z(psi, qubit_num, qubit_idx),
+                                                                 qubit_num, qubit_idx)
+                                                       + (1 - 1j) * apply_x(psi, qubit_num, qubit_idx))
+            return psi
 
         psi_rot = self.psi
         for i in pauli_string:
@@ -227,27 +223,15 @@ def main():
 
     # BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
     # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
-    psi = pt.rand(2 ** 6, dtype=constants.DEFAULT_COMPLEX_TYPE)
+    psi = pt.rand(2 ** 8, dtype=constants.DEFAULT_COMPLEX_TYPE)
     psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
     # psi = pt.tensor([1, 0, 0, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)
     # print(BFQuantumState(2, psi).rotate_pauli_index({}, 1))
     # print(BFQuantumState(2, psi).apply_x_pauli(1))
-    dictbla = {0: 'Z', 1: 'X', 2: 'Y', 3: 'Z', 4: 'Y', 5: 'X'}
+    dictbla = {0: 'Y', 1: 'Y', 2: 'X', 3: 'Z', 4: 'Y', 6: 'X'}
     dictZ = {0: 'Z', 1: 'Z', 2: 'Z', 3: 'Z', 4: 'Z', 6: 'Z'}
-    observables = []
-    for i in range(0, 6):
-        x_arr = [['X', i]]
-        if i <= 6 - 2:
-            z_arr = [['Z', i], ['Z', i + 1]]
-        elif i <= 6 - 1:
-            z_arr = [['Z', i], ['Z', 0]]
-        else:
-            z_arr = None
-        observables.append(x_arr)
-        observables.append(z_arr)
-    # print(BFQuantumState(6, psi).rotate_pauli_all_bitwise(dictbla))
-    # print(BFQuantumState(6, psi).rotate_pauli(dictbla))
-    print(BFQuantumState(6, psi).measurement_shadow(100, 'derandomized', observables))
+    print(BFQuantumState(8, psi).rotate_pauli_index(dictZ))
+    print(BFQuantumState(8, psi).rotate_pauli(dictZ))
     # print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
     # print(BFQuantumState(4, psi).measure(10000))
 

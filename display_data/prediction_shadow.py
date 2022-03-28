@@ -12,7 +12,7 @@ def estimate_exp(full_measurement, one_observable):
             if pauli_XYZ != single_measurement[position][0]:
                 not_match = 1
                 break
-            product *= int(single_measurement[position][1]) # here the outcome of the measurement is
+            product *= single_measurement[position][1] # here the outcome of the measurement is
             # stored if the measurement has been performed in the same basis
         if not_match == 1: continue
         # we jump straight in the next iteration if the measurement was not in the same basis
