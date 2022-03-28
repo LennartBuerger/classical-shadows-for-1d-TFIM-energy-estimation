@@ -11,8 +11,6 @@ from data_acquisition_shadow import derandomized_classical_shadow, randomized_cl
 from prediction_shadow import estimate_exp
 from bf_quantum_state import BFQuantumState
 
-from abstract_quantum_state import AbstractQuantumState
-
 
 class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
     ENERGY_METHODS = ('BF', 'BF_shadow')
@@ -54,10 +52,6 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
 # we either have to pass psi or measurement, when no measurement=None the method needs psi to do the measurement
     def energy_shadow(self, psi: pt.tensor, num_of_measurements: int,
                       measurement_method: str, measurement):
-        # the derandomization procedure makes to measurements per measurement_per_observable which is the input
-        # --> we divide by two to obtain the same number of measurements for randomized and derandomized
-        if measurement_method == 'derandomized':
-            num_of_measurements = int(num_of_measurements / 2)
         observables = self.observables_for_energy_estimation()
         if measurement is None:
             measurement = BFQuantumState(self.qubit_num,
