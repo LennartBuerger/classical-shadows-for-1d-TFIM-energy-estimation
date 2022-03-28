@@ -208,6 +208,25 @@ class BFQuantumState(AbstractQuantumState):
         correlation = pt.conj(self.psi) @ pt.tensor(corr_operator_sparse.dot(self.psi))
         return correlation.real
 
+    def local_observable(self, obs) -> float:
+        # converting the observable with shape e.g. [[Z, 0], [Z,1]] to right shape 'Z0 Z1'
+        observable: str = ''
+        for obis in obs:
+            observable = observable + obis[0] + str(obis[1]) + ' '
+        operator_sparse = opf_lin.get_sparse_operator(QubitOperator(observable), n_qubits=self.qubit_num)
+        exp_val = pt.conj(self.psi) @ pt.tensor(operator_sparse.dot(self.psi))
+        return exp_val
+
+    def local_observable_shadow(self, obs, measurements):
+        sum_product, cnt_match = estimate_exp(measurements, obs)
+        if sum_product == 0 and cnt_match == 0:
+            expectation_val = 0
+        elif cnt_match == 0 and sum_product != 0:
+            print('cnt_match is zero (problemo)!')
+        else:
+            expectation_val = sum_product / cnt_match
+        return expectation_val
+
     def correlation_length(self, basis) -> int:
         correlation_length = None
         dist = np.arange(0, self.qubit_num, 1)
@@ -229,27 +248,10 @@ def main():
     # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
     psi = pt.rand(2 ** 6, dtype=constants.DEFAULT_COMPLEX_TYPE)
     psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
-    # psi = pt.tensor([1, 0, 0, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)
-    # print(BFQuantumState(2, psi).rotate_pauli_index({}, 1))
-    # print(BFQuantumState(2, psi).apply_x_pauli(1))
-    dictbla = {0: 'Z', 1: 'X', 2: 'Y', 3: 'Z', 4: 'Y', 5: 'X'}
-    dictZ = {0: 'Z', 1: 'Z', 2: 'Z', 3: 'Z', 4: 'Z', 6: 'Z'}
-    observables = []
-    for i in range(0, 6):
-        x_arr = [['X', i]]
-        if i <= 6 - 2:
-            z_arr = [['Z', i], ['Z', i + 1]]
-        elif i <= 6 - 1:
-            z_arr = [['Z', i], ['Z', 0]]
-        else:
-            z_arr = None
-        observables.append(x_arr)
-        observables.append(z_arr)
-    # print(BFQuantumState(6, psi).rotate_pauli_all_bitwise(dictbla))
-    # print(BFQuantumState(6, psi).rotate_pauli(dictbla))
-    print(BFQuantumState(6, psi).measurement_shadow(100, 'derandomized', observables))
-    # print(BFQuantumState(4, psi).measurement_shadow(1, 'randomized', {0: 'Z', 1: 'Z'}))
-    # print(BFQuantumState(4, psi).measure(10000))
+    z_arr = [['Z', 0], ['Z', 4]]
+    print(BFQuantumState(6, psi).local_observable(z_arr))
+    print(BFQuantumState(6, psi).two_point_correlation(4, 'Z'))
+
 
 
 if __name__ == '__main__':

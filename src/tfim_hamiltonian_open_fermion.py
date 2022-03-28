@@ -47,6 +47,17 @@ class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
                     z_arr = None
                 observables.append(x_arr)
                 observables.append(z_arr)
+
+        if self.boundary_cond == 'open':
+            observables = []
+            for i in range(0, self.qubit_num):
+                x_arr = [['X', i]]
+                if i <= self.qubit_num - 2:
+                    z_arr = [['Z', i], ['Z', i + 1]]
+                else:
+                    z_arr = None
+                observables.append(x_arr)
+                observables.append(z_arr)
         return observables
 
 # we either have to pass psi or measurement, when no measurement=None the method needs psi to do the measurement
