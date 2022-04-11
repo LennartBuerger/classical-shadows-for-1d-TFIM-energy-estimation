@@ -1,14 +1,16 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch as pt
-from abstract_quantum_state import AbstractQuantumState
-import constants
+from src.abstract_quantum_state import AbstractQuantumState
+from src import constants
 import numpy as np
 from openfermion.ops import QubitOperator
 import openfermion.linalg as opf_lin
 import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 from scipy.sparse import kron
-from data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
-from prediction_shadow import estimate_exp
+from display_data.data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
+from display_data.prediction_shadow import estimate_exp
 
 
 class BFQuantumState(AbstractQuantumState):

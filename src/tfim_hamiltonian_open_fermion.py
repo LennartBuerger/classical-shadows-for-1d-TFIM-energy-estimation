@@ -1,18 +1,20 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from abc import ABC
-import abstract_hamiltonian
+from src.abstract_hamiltonian import AbstractHamiltonian
 import torch as pt
 from openfermion.ops import QubitOperator
 import openfermion.linalg as opf_lin
 import scipy.sparse.linalg
 import numpy as np
 import matplotlib.pyplot as plt
-import constants
-from data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
-from prediction_shadow import estimate_exp
-from bf_quantum_state import BFQuantumState
+from src import constants
+from display_data.data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
+from display_data.prediction_shadow import estimate_exp
+from src.bf_quantum_state import BFQuantumState
 
 
-class TfimHamiltonianOpenFermion(abstract_hamiltonian.AbstractHamiltonian, ABC):
+class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
     ENERGY_METHODS = ('BF', 'BF_shadow')
     BOUNDARY_CONDITIONS = ('open', 'periodic',)
 

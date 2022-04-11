@@ -1,3 +1,5 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from abc import ABC
 import abstract_hamiltonian
 import torch as pt
@@ -5,9 +7,10 @@ from openfermion.ops import QubitOperator
 import openfermion.linalg as opf_lin
 import scipy.sparse.linalg
 import numpy as np
-import constants
-from prediction_shadow import estimate_exp
-from bf_quantum_state import BFQuantumState
+from src import constants
+from display_data.prediction_shadow import estimate_exp
+from src.bf_quantum_state import BFQuantumState
+
 
 
 class HeisenbergHamiltonainAntiferro(abstract_hamiltonian.AbstractHamiltonian, ABC):
