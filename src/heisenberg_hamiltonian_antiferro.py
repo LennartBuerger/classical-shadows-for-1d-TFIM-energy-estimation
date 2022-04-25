@@ -1,7 +1,7 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from abc import ABC
-import abstract_hamiltonian
+from src.abstract_hamiltonian import AbstractHamiltonian
 import torch as pt
 from openfermion.ops import QubitOperator
 import openfermion.linalg as opf_lin
@@ -13,7 +13,7 @@ from src.bf_quantum_state import BFQuantumState
 
 
 
-class HeisenbergHamiltonainAntiferro(abstract_hamiltonian.AbstractHamiltonian, ABC):
+class HeisenbergHamiltonainAntiferro(AbstractHamiltonian, ABC):
     ENERGY_METHODS = ('BF', 'BF_shadow')
     BOUNDARY_CONDITIONS = ('open', 'periodic',)
 
