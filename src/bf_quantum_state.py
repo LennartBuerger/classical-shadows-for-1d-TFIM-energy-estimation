@@ -11,6 +11,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse import kron
 from display_data.data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
 from display_data.prediction_shadow import estimate_exp
+import math
 
 
 class BFQuantumState(AbstractQuantumState):
@@ -85,12 +86,15 @@ class BFQuantumState(AbstractQuantumState):
         if measurement_method == 'derandomized':
             batch_size = 100
             measurement_procedure = []
-            # the derandomization procedure makes two measurements per measurement_per_observable which is the input
-            # --> we divide by two to obtain the same number of measurements for randomized and derandomized
-            for i in range(0, int(num_of_measurements / batch_size)):
-                measurement_procedure_batch = derandomized_classical_shadow(observables,
-                                                                            int(batch_size / 2), self.qubit_num)
-                for j in range(0, batch_size):
+            # the derandomization procedure puts out multiple Pauli strings such that every observable
+            # is measured at least once
+            # -> we first determine the number of Pauli strings that are given as output
+            # to obtain the same number of measurements for randomized and derandomized
+            # sometimes this procedure does give a slightly bigger number of derandomized measurements
+            num_pauli_strings_in_one_batch = len(derandomized_classical_shadow(observables, batch_size, self.qubit_num))
+            for i in range(0, math.ceil(num_of_measurements / num_pauli_strings_in_one_batch)):
+                measurement_procedure_batch = derandomized_classical_shadow(observables, batch_size, self.qubit_num)
+                for j in range(0, num_pauli_strings_in_one_batch):
                     measurement_procedure.append(measurement_procedure_batch[j])
         if measurement_method == 'randomized':
             measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
@@ -243,16 +247,9 @@ class BFQuantumState(AbstractQuantumState):
 
 # down here comes testing rubbish which can be removed later
 def main():
-    # specify number of qubits
-    nq = 12
+    print(len(derandomized_classical_shadow([[['X', 0]], [['Z', 0], ['Z', 1]], [['Y', 0], ['Y', 1]], [['X', 0], ['X', 1]]],
+                                        50, 14)))
 
-    # BFQuantumState(12, None).measurement_shadow(1, 'derandomized', [[['Z', 0], ['Z', 3]]])
-    # print(BFQuantumState(2, 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([0, 1, 1, 0], dtype=constants.DEFAULT_COMPLEX_TYPE)).measure_pauli({0: 'Z', 1: 'Z'}, 1))
-    psi = pt.rand(2 ** 6, dtype=constants.DEFAULT_COMPLEX_TYPE)
-    psi = psi / pt.sqrt((pt.dot(pt.conj(psi), psi)))
-    z_arr = [['Z', 0], ['Z', 4]]
-    print(BFQuantumState(6, psi).local_observable(z_arr))
-    print(BFQuantumState(6, psi).two_point_correlation(4, 'Z'))
 
 
 
