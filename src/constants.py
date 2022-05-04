@@ -25,3 +25,6 @@ CLIFFORD: dict = {'X': pt.tensor([[0, 1], [1, 0]], dtype=DEFAULT_COMPLEX_TYPE),
                   'I': pt.tensor([[1, 0], [0, 1]], dtype=DEFAULT_COMPLEX_TYPE),
                   'H': 1 / pt.sqrt(pt.tensor([2])) * pt.tensor([[1, 1], [1, -1]], dtype=DEFAULT_COMPLEX_TYPE),
                   'S': pt.tensor([[1, 0], [0, 1j]], dtype=DEFAULT_COMPLEX_TYPE)}
+
+DEFAULT_MOLECULE_ROOT = './../molecules'
+CHEMICAL_ACCURACY = 1.6e-3

@@ -189,7 +189,7 @@ def main():
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy())
     # print(TfimHamiltonianOpenFermion(qubit_num, 2, 1, 'periodic').ground_state_energy_theo())
 
-    print(TfimHamiltonianOpenFermion(4, 0, 1, 'periodic').ground_state_wavevector())
+    print(TfimHamiltonianOpenFermion(4, 0, 1, 'periodic').observables_for_energy_estimation())
 
 
 

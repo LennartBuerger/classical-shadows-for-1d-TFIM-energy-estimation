@@ -84,18 +84,18 @@ class BFQuantumState(AbstractQuantumState):
         # dealing with more complicated systems where we have to measure more than 100 different Pauli Strings
         # for now we form batches of 100 measurements
         if measurement_method == 'derandomized':
-            batch_size = 100
+            batch_size = 5
             measurement_procedure = []
             # the derandomization procedure puts out multiple Pauli strings such that every observable
             # is measured at least once
             # -> we first determine the number of Pauli strings that are given as output
             # to obtain the same number of measurements for randomized and derandomized
             # sometimes this procedure does give a slightly bigger number of derandomized measurements
-            num_pauli_strings_in_one_batch = len(derandomized_classical_shadow(observables, batch_size, self.qubit_num))
+            measurement_procedure_batched = derandomized_classical_shadow(observables, batch_size, self.qubit_num)
+            num_pauli_strings_in_one_batch = len(measurement_procedure_batched)
             for i in range(0, math.ceil(num_of_measurements / num_pauli_strings_in_one_batch)):
-                measurement_procedure_batch = derandomized_classical_shadow(observables, batch_size, self.qubit_num)
                 for j in range(0, num_pauli_strings_in_one_batch):
-                    measurement_procedure.append(measurement_procedure_batch[j])
+                    measurement_procedure.append(measurement_procedure_batched[j])
         if measurement_method == 'randomized':
             measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
         # convert the array measurement_procedure to array of dicts to have the right format for the measurement
