@@ -130,8 +130,6 @@ class Molecular_Hamiltonian():
                 continue
             else:
                 sum_product, cnt_match = estimate_exp(measurement, observables[i])
-            if cnt_match == 0:
-                print('The observable ' + str(observables[i]) + ' has not been measured once.')
             if sum_product == 0 and cnt_match == 0:
                 expectation_val = 0
             elif cnt_match == 0 and sum_product != 0:

@@ -1,4 +1,5 @@
 import os
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch as pt
 from src.abstract_quantum_state import AbstractQuantumState
@@ -93,25 +94,50 @@ class BFQuantumState(AbstractQuantumState):
             # sometimes this procedure does give a slightly bigger number of derandomized measurements
             measurement_procedure_batched = derandomized_classical_shadow(observables, batch_size, self.qubit_num)
             num_pauli_strings_in_one_batch = len(measurement_procedure_batched)
-            for i in range(0, math.ceil(num_of_measurements / num_pauli_strings_in_one_batch)):
+            number_of_measurements_for_one_pauli_string = math.ceil(
+                num_of_measurements / num_pauli_strings_in_one_batch)
+            for i in range(0, number_of_measurements_for_one_pauli_string):
                 for j in range(0, num_pauli_strings_in_one_batch):
                     measurement_procedure.append(measurement_procedure_batched[j])
+            measurement_procedure_batched_dict = []
+            for i in range(0, len(measurement_procedure_batched)):
+                pauli_dict = {}
+                for j in range(0, len(measurement_procedure_batched[i])):
+                    pauli_dict[j] = measurement_procedure[i][j]
+                measurement_procedure_batched_dict.append(pauli_dict)
+            # now we apply the measurements to our state psi
+            new_num_of_measurements = number_of_measurements_for_one_pauli_string * num_pauli_strings_in_one_batch
+            measurement_index = [0] * new_num_of_measurements
+            for i in range(0, num_pauli_strings_in_one_batch):
+                index, prob = self.measure_pauli(measurement_procedure_batched_dict[i],
+                                                 number_of_measurements_for_one_pauli_string)
+                number_of_times_index_measured = prob * number_of_measurements_for_one_pauli_string
+                indices = np.array([])
+                for k in range(0, index.size()[0]):
+                    for m in range(0, int(round(number_of_times_index_measured[k].item(), 0))):
+                        indices = np.append(indices, index[k])
+                np.random.shuffle(indices)
+                for n in range(0, number_of_measurements_for_one_pauli_string):
+                    measurement_index[n*num_pauli_strings_in_one_batch + i] = int(indices[n])
+            return measurement_procedure, measurement_index
+
         if measurement_method == 'randomized':
             measurement_procedure = randomized_classical_shadow(num_of_measurements, self.qubit_num)
-        # convert the array measurement_procedure to array of dicts to have the right format for the measurement
-        measurement_procedure_dict = []
-        for i in range(0, len(measurement_procedure)):
-            pauli_dict = {}
-            for j in range(0, len(measurement_procedure[i])):
-                pauli_dict[j] = measurement_procedure[i][j]
-            measurement_procedure_dict.append(pauli_dict)
-        # now we apply the measurements to our state psi
-        measurement_index = []
-        for i in range(0, len(measurement_procedure_dict)):
-            measurement_index.append(int(self.measure_pauli(measurement_procedure_dict[i], 1)[0]))
-        # returns one array with measurement basis, one array with the index of the measured state in the shape
-        # e.g. [10, 52, 92, 0, 7, 17, 29, 13]
-        return measurement_procedure, measurement_index
+            # convert the array measurement_procedure to array of dicts to have the right format for the measurement
+            measurement_procedure_dict = []
+            for i in range(0, len(measurement_procedure)):
+                pauli_dict = {}
+                for j in range(0, len(measurement_procedure[i])):
+                    pauli_dict[j] = measurement_procedure[i][j]
+                measurement_procedure_dict.append(pauli_dict)
+            # now we apply the measurements to our state psi
+            measurement_index = []
+            for i in range(0, len(measurement_procedure_dict)):
+                measurement_index.append(int(self.measure_pauli(measurement_procedure_dict[i], 1)[0]))
+            # returns one array with measurement basis, one array with the index of the measured state in the shape
+            # e.g. [10, 52, 92, 0, 7, 17, 29, 13]
+            return measurement_procedure, measurement_index
+        return None
 
     def rotate_pauli(self, pauli_string: dict):
 
@@ -247,10 +273,9 @@ class BFQuantumState(AbstractQuantumState):
 
 # down here comes testing rubbish which can be removed later
 def main():
-    print(len(derandomized_classical_shadow([[['X', 0]], [['Z', 0], ['Z', 1]], [['Y', 0], ['Y', 1]], [['X', 0], ['X', 1]]],
-                                        50, 14)))
-
-
+    print(len(derandomized_classical_shadow(
+        [[['X', 0]], [['Z', 0], ['Z', 1]], [['Y', 0], ['Y', 1]], [['X', 0], ['X', 1]]],
+        50, 14)))
 
 
 if __name__ == '__main__':
