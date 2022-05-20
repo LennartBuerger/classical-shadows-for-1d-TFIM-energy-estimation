@@ -59,9 +59,10 @@ class QubitHamiltonian:
                     pt.tensor(sign_masks).to(self.device))
 
     def popcount(self, indices):
-
+        return None
 
     def calc_coupled_signs_matrix(self, indices):
         return 1 - 2 * pt.bitwise_and(1, )
 
     def calc_coupled_indices_and_weights(self, phys_space_idx: pt.Tensor = None):
+        return None
