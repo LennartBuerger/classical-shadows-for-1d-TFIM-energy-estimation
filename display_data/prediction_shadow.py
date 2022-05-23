@@ -1,6 +1,3 @@
-import sys
-
-
 def estimate_exp(full_measurement, one_observable):
     sum_product, cnt_match = 0, 0
 
@@ -14,7 +11,8 @@ def estimate_exp(full_measurement, one_observable):
                 break
             product *= int(single_measurement[position][1]) # here the outcome of the measurement is
             # stored if the measurement has been performed in the same basis
-        if not_match == 1: continue
+        if not_match == 1:
+            continue
         # we jump straight in the next iteration if the measurement was not in the same basis
         # otherwise the measurement outcome is added to sum_product and the number of matches goes one up
         sum_product += product
