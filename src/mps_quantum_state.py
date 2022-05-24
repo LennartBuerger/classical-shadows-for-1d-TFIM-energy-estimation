@@ -9,6 +9,8 @@ from src import constants
 import numpy as np
 sys.path.append(Path('../deterministic'))
 from deterministic.mps import MPS
+from display_data.data_acquisition_shadow import derandomized_classical_shadow, randomized_classical_shadow
+from display_data.prediction_shadow import estimate_exp
 
 
 class MPSQuantumState(AbstractQuantumState):
@@ -29,9 +31,14 @@ class MPSQuantumState(AbstractQuantumState):
     def prob(self, basis_idx: pt.Tensor) -> float:
         pass
 
-
-    def norm(self) -> float:
-        pass
+    def norm(self):
+        result = pt.einsum('abc,abj->cj', self.tensor_list[0], self.tensor_list[0].conj())
+        for idx in range(1, self.qubit_num - 1):
+            result = pt.einsum('cj,cab->jab', result, self.tensor_list[idx])
+            result = pt.einsum('jab,jad->bd', result, self.tensor_list[idx].conj())
+        result = pt.einsum('ab,acj->bcj', result, self.tensor_list[self.qubit_num - 1])
+        result = pt.einsum('bcj,bci->ji', result, self.tensor_list[self.qubit_num - 1].conj())
+        return pt.sqrt(result)
 
     def canonicalise_left_to_index(self, idx, phys_dim):
         # from the left
@@ -94,6 +101,28 @@ class MPSQuantumState(AbstractQuantumState):
     def measure_pauli(self, pauli_string: dict, batch_size: int):
         return self.rotate_pauli(pauli_string).measure(batch_size)
 
-    def measurement_shadow(self):
+    def measurement_shadow(self, number_of_measurements, num_measurements_per_rot):
+        measurement_outcomes = []
+        probabilities = []
+        measurement_procedure = randomized_classical_shadow(number_of_measurements, self.qubit_num)
+        for i in range(number_of_measurements):
+            mps_rotated = self.rotate_pauli(measurement_procedure[i])
+            measurement_bits, probs = mps_rotated.measure(num_measurements_per_rot)
+            probabilities.append(pt.prod(probs, dim=0))
+            # convert binary torch tensor to index
+            measurement_outcome = pt.zeros(num_measurements_per_rot, dtype=pt.int)
+            for k in range(0, self.qubit_num):
+                measurement_outcome[:] = measurement_outcome + measurement_bits[k] * 2 ** (self.qubit_num - 1 - k)
+            measurement_outcomes.append(measurement_outcome)
+        return measurement_outcomes, measurement_procedure, probabilities
+
+    # apply a string of single qubit clifford gates
+    def apply_clifford(self, clifford_string: dict):
+        pass
+
+    def entanglement_entropy(self):
+        pass
+
+    def two_point_correlation(self, dist: int, basis: str) -> float:
         pass
 

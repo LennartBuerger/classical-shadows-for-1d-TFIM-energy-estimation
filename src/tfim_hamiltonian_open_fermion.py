@@ -86,6 +86,32 @@ class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
                 energy = energy + self.J * expectation_val
         return energy
 
+    def energy_shadow_mps_modified(self, measurements, probabilities):
+        observables = []
+        for i in range(0, self.qubit_num):
+            x_arr = [['X', i]]
+            observables.append(x_arr)
+            if i <= self.qubit_num - 2:
+                z_arr = [['Z', i], ['Z', i + 1]]
+                observables.append(z_arr)
+
+        energy = 0
+        for j in range(len(measurements)):
+            for i in range(0, len(observables)):
+                sum_product, cnt_match = estimate_exp([measurements[j]], observables[i])
+                if sum_product == 0 and cnt_match == 0:
+                    expectation_val = 0
+                elif cnt_match == 0 and sum_product != 0:
+                    print('cnt_match is zero (problemo)!')
+                else:
+                    expectation_val = sum_product / cnt_match * probabilities[j]
+                if i % 2 == 0:
+                    energy = energy + self.h * expectation_val * 3  # weighing with factor 3**locality to counteract the chance of hitting
+                else:
+                    energy = energy + self.J * expectation_val * 3 ** 2
+        energy = energy / pt.sum(probabilities).item()
+        return energy
+
     def diagonalize(self, nr_eigs: int, return_eig_vecs: bool) -> (pt.float, pt.tensor):
         if return_eig_vecs:
             return scipy.sparse.linalg.eigsh(self.to_matrix(), which='SA', k=nr_eigs)
