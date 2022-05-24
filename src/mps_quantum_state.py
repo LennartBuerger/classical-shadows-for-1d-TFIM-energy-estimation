@@ -75,8 +75,8 @@ class MPSQuantumState(AbstractQuantumState):
                     result = pt.einsum('acs,ams->cm', result, self.tensor_list[idx].conj())
                 # contraction done
                 prob_for_previous_bits = pt.prod(probabilities_for_bits[:, k])
-                probs = [result[0, 0] / part_func / prob_for_previous_bits,
-                         result[1, 1] / part_func / prob_for_previous_bits]
+                probs = [abs(result[0, 0]) / part_func / prob_for_previous_bits,
+                         abs(result[1, 1]) / part_func / prob_for_previous_bits]
                 bits_sampled[idx, k] = pt.multinomial(pt.tensor([probs[0].real.item(), probs[1].real.item()]), 1,
                                                       replacement=True)[0].item()
                 probabilities_for_bits[idx, k] = probs[int(bits_sampled[idx, k].item())]
