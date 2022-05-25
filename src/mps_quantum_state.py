@@ -24,12 +24,12 @@ class MPSQuantumState(AbstractQuantumState):
     # measuring amplitude with respect to some basis vector
 
     def amplitude(self, basis_idx: pt.Tensor) -> pt.tensor:
-        pass
+        return MPS.from_tensor_list(self.tensor_list).amplitude(basis_idx)
 
     # probability of measuring our quantum state in a certain basis vector state
 
-    def prob(self, basis_idx: pt.Tensor) -> float:
-        pass
+    def prob(self, basis_idx: pt.Tensor) -> pt.tensor:
+        return (self.amplitude(basis_idx).conj()*self.amplitude(basis_idx)).real
 
     def norm(self):
         result = pt.einsum('abc,abj->cj', self.tensor_list[0], self.tensor_list[0].conj())
@@ -76,8 +76,7 @@ class MPSQuantumState(AbstractQuantumState):
                         result = pt.einsum('fj,df->dj', result,
                                            self.tensor_list[index][:, int(bits_sampled[index, k].item()), :])
                         result = pt.einsum('dj,lj->dl', result,
-                                           self.tensor_list[index][:, int(bits_sampled[index, k].item()),
-                                           :].conj())
+                                           self.tensor_list[index][:, int(bits_sampled[index, k].item()), :].conj())
                     result = pt.einsum('rs,acr->acs', result, self.tensor_list[idx])
                     result = pt.einsum('acs,ams->cm', result, self.tensor_list[idx].conj())
                 # contraction done
