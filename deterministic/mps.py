@@ -321,8 +321,8 @@ class MPS:
     def normalise(self) -> MPS:
         norm = self.norm()
         scaling = pt.pow(norm, 1.0 / self.visible_num)
-        print(scaling)
-        print(f'Hei!')
+        # print(scaling)
+        # print(f'Hei!')
         for idx in range(self.visible_num):
             self.tensors[idx] = self.tensors[idx] / scaling
 
