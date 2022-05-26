@@ -20,7 +20,14 @@ class MPSQuantumState(AbstractQuantumState):
 
     # measuring amplitude with respect to some basis vector
     def amplitude(self, basis_idx: pt.Tensor) -> pt.Tensor:
-        return self.mps.amplitude(basis_idx)
+        # different index to binary conventions are used, which is why we have to flip first
+        mask = 2 ** pt.arange(self.qubit_num).to(basis_idx.device, basis_idx.dtype)
+        bin = basis_idx.unsqueeze(-1).bitwise_and(mask).ne(0).byte()
+        bin_flip = pt.flip(bin, dims=[1])
+        powers = 2 ** pt.arange(0, self.qubit_num, dtype=pt.int)
+        bin_flip = bin_flip.to(pt.int)
+        flipped_idx = pt.einsum('ba,a->b', bin_flip, powers)
+        return self.mps.amplitude(flipped_idx)
 
     # probability of measuring our quantum state in a certain basis vector state
     def prob(self, basis_idx: pt.Tensor) -> pt.Tensor:
@@ -82,27 +89,6 @@ class MPSQuantumState(AbstractQuantumState):
             meas_results.append(meas_res_basis)
             probs.append(prob_basis)
         return meas_results, meas_bases, probs
-
-    # this is the old, dirty but working method
-    def measurement_shadow_old_working(self, number_of_measurements, num_measurements_per_rot):
-        measurement_outcomes = []
-        probabilities = []
-        measurement_procedure = randomized_classical_shadow(number_of_measurements, self.qubit_num)
-        for i in range(number_of_measurements):
-            mps_rotated = self.rotate_pauli(measurement_procedure[i])
-            meas_res_basis = pt.zeros(num_measurements_per_rot, dtype=pt.int)
-            prob_basis = pt.zeros(num_measurements_per_rot)
-            for j in range(num_measurements_per_rot):
-                meas_result, prob_result = mps_rotated.measure(batch_size=1)
-                measurement_outcome = 0
-                for k in range(0, self.qubit_num):
-                    measurement_outcome = measurement_outcome + int(meas_result[k].item()) * (
-                                2 ** (self.qubit_num - 1 - k))
-                meas_res_basis[j] = measurement_outcome
-                prob_basis[j] = pt.prod(prob_result, dim=0).item()
-            probabilities.append(prob_basis)
-            measurement_outcomes.append(meas_res_basis)
-        return measurement_outcomes, measurement_procedure, probabilities
 
     # apply a string of single qubit clifford gates
     def apply_clifford(self, clifford_string: dict):
