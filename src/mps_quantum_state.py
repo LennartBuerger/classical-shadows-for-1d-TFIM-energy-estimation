@@ -26,7 +26,7 @@ class MPSQuantumState(AbstractQuantumState):
     # probability of measuring our quantum state in a certain basis vector state
     def prob(self, basis_idx: pt.Tensor) -> pt.Tensor:
         amps = self.amplitude(basis_idx)
-        return (pt.conj(amps) * amps).real()
+        return (pt.conj(amps) * amps).real
 
     def norm(self):
         return self.mps.norm()
@@ -65,7 +65,7 @@ class MPSQuantumState(AbstractQuantumState):
                 probs = [pt.abs(result[0, 0]) / part_func / prob_for_previous_bits,
                          pt.abs(result[1, 1]) / part_func / prob_for_previous_bits]
                 sampled_visible[rev_idx, k] = pt.multinomial(pt.tensor([probs[0].real.item(), probs[1].real.item()]), 1,
-                                                      replacement=True)[0].item()
+                                                             replacement=True)[0].item()
                 probabilities_for_bits[rev_idx, k] = probs[int(sampled_visible[rev_idx, k].item())]
         return sampled_visible, probabilities_for_bits
 
@@ -102,4 +102,5 @@ class MPSQuantumState(AbstractQuantumState):
 
     def two_point_correlation(self, dist: int, basis: str) -> float:
         pass
+
 
