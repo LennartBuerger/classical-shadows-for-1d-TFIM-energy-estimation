@@ -31,7 +31,7 @@ class MPSQuantumState(AbstractQuantumState):
         return self.mps.norm()
 
     # measures state in computational basis
-    def measure_new(self, batch_size: int = 1):
+    def measure(self, batch_size: int = 1):
         vis_sampled = pt.zeros(self.qubit_num)
         probs_vis = pt.ones(self.qubit_num)
         self.mps.canonicalise(self.qubit_num - 1)
@@ -53,7 +53,10 @@ class MPSQuantumState(AbstractQuantumState):
                                self.mps.tensors[idx_rev][:, int(vis_sampled[idx_rev].item()), :].conj())
             # Top -> Bottom
             result = pt.einsum('ik,jai->jak', result, self.mps.tensors[idx_rev - 1])
-        return self.mps.visible_to_idx(vis_sampled), pt.prod(probs_vis)
+        measurement_idx = 0
+        for k in range(0, self.qubit_num):
+            measurement_idx = measurement_idx + int(vis_sampled[k].item()) * (2 ** (self.qubit_num - 1 - k))
+        return measurement_idx, pt.prod(probs_vis)
 
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
     def rotate_pauli(self, pauli_string: dict):
@@ -66,7 +69,7 @@ class MPSQuantumState(AbstractQuantumState):
     def measure_pauli(self, pauli_string: dict, batch_size: int):
         return self.rotate_pauli(pauli_string).measure(batch_size)
 
-    def measurement_shadow_new(self, meas_num, meas_per_basis):
+    def measurement_shadow(self, meas_num, meas_per_basis):
         meas_results = []
         probs = []
         meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
@@ -80,46 +83,8 @@ class MPSQuantumState(AbstractQuantumState):
             probs.append(prob_basis)
         return meas_results, meas_bases, probs
 
-    # measures state in computational basis
-    def measure(self, batch_size: int):
-        sampled_visible = pt.zeros((self.qubit_num, batch_size))
-        probabilities_for_bits = pt.ones((self.qubit_num, batch_size))
-        self.mps.canonicalise(self.qubit_num - 1)
-        # we only need to do this step if the MPS is not normalised
-        part_func = self.mps.norm()
-
-        for idx in range(self.qubit_num):
-            rev_idx = self.qubit_num - 1 - idx
-            # because the probabilities for all samples is different, we cannot draw them all at once
-            # but have to draw them one by one by looping
-            for k in range(batch_size):
-                # contract the network
-                if rev_idx == self.qubit_num - 1:
-                    result = pt.einsum('ijl,iml->jm', self.mps.tensors[rev_idx], self.mps.tensors[rev_idx].conj())
-                else:
-                    result = pt.einsum('fh,jh->fj', self.mps.tensors[self.qubit_num - 1][:,
-                                                    int(sampled_visible[self.qubit_num - 1, k].item()), :],
-                                       self.mps.tensors[self.qubit_num - 1][:,
-                                       int(sampled_visible[self.qubit_num - 1, k].item()), :].conj())
-                    for counter in range(self.qubit_num - 1 - rev_idx - 1):
-                        idx = self.qubit_num - 1 - counter - 1
-                        result = pt.einsum('fj,df->dj', result,
-                                           self.mps.tensors[idx][:, int(sampled_visible[idx, k].item()), :])
-                        result = pt.einsum('dj,lj->dl', result,
-                                           self.mps.tensors[idx][:, int(sampled_visible[idx, k].item()), :].conj())
-                    result = pt.einsum('rs,acr->acs', result, self.mps.tensors[rev_idx])
-                    result = pt.einsum('acs,ams->cm', result, self.mps.tensors[rev_idx].conj())
-                # contraction done
-                prob_for_previous_bits = pt.prod(probabilities_for_bits[:, k])
-                probs = [pt.abs(result[0, 0]) / part_func / prob_for_previous_bits,
-                         pt.abs(result[1, 1]) / part_func / prob_for_previous_bits]
-                sampled_visible[rev_idx, k] = \
-                pt.multinomial(pt.tensor([probs[0].real.item(), probs[1].real.item()]), 1,
-                               replacement=True)[0].item()
-                probabilities_for_bits[rev_idx, k] = probs[int(sampled_visible[rev_idx, k].item())]
-        return sampled_visible, probabilities_for_bits
-
-    def measurement_shadow_old(self, number_of_measurements, num_measurements_per_rot):
+    # this is the old, dirty but working method
+    def measurement_shadow_old_working(self, number_of_measurements, num_measurements_per_rot):
         measurement_outcomes = []
         probabilities = []
         measurement_procedure = randomized_classical_shadow(number_of_measurements, self.qubit_num)
@@ -131,7 +96,8 @@ class MPSQuantumState(AbstractQuantumState):
                 meas_result, prob_result = mps_rotated.measure(batch_size=1)
                 measurement_outcome = 0
                 for k in range(0, self.qubit_num):
-                    measurement_outcome = measurement_outcome + int(meas_result[k].item()) * (2 ** (self.qubit_num - 1 - k))
+                    measurement_outcome = measurement_outcome + int(meas_result[k].item()) * (
+                                2 ** (self.qubit_num - 1 - k))
                 meas_res_basis[j] = measurement_outcome
                 prob_basis[j] = pt.prod(prob_result, dim=0).item()
             probabilities.append(prob_basis)
@@ -147,5 +113,3 @@ class MPSQuantumState(AbstractQuantumState):
 
     def two_point_correlation(self, dist: int, basis: str) -> float:
         pass
-
-
