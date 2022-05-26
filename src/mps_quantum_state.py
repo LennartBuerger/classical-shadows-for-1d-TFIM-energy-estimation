@@ -25,7 +25,8 @@ class MPSQuantumState(AbstractQuantumState):
 
     # probability of measuring our quantum state in a certain basis vector state
     def prob(self, basis_idx: pt.Tensor) -> pt.Tensor:
-        return pt.norm(self.amplitude(basis_idx)) ** 2
+        amps = self.amplitude(basis_idx)
+        return (pt.conj(amps) * amps).real()
 
     def norm(self):
         return self.mps.norm()
