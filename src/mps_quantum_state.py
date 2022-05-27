@@ -41,7 +41,7 @@ class MPSQuantumState(AbstractQuantumState):
     def measure(self, batch_size: int = 1):
         vis_sampled = pt.zeros(self.qubit_num)
         probs_vis = pt.ones(self.qubit_num)
-        self.mps.canonicalise(self.qubit_num - 1)
+        # self.mps.canonicalise(self.qubit_num - 1) we already call this in the measurement shadow function
         part_func = self.mps.norm().real
         for idx_rev in range(self.qubit_num - 1, -1, -1):
             if idx_rev == self.qubit_num - 1:
@@ -82,6 +82,7 @@ class MPSQuantumState(AbstractQuantumState):
         meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
         for i in range(meas_num):
             mps_rotated = self.rotate_pauli(meas_bases[i])
+            mps_rotated.mps.canonicalise(self.qubit_num - 1)
             meas_res_basis = pt.zeros(meas_per_basis, dtype=pt.int)
             prob_basis = pt.zeros(meas_per_basis)
             for j in range(meas_per_basis):
