@@ -27,7 +27,12 @@ class MPSQuantumState(AbstractQuantumState):
         powers = 2 ** pt.arange(0, self.qubit_num, dtype=pt.int)
         bin_flip = bin_flip.to(pt.int)
         flipped_idx = pt.einsum('ba,a->b', bin_flip, powers)
-        return self.mps.amplitude(flipped_idx)
+        if flipped_idx.size()[0] == 1:
+            flipped_idx = pt.cat((flipped_idx, pt.tensor([0]))) # code fails when only one index is passed to amplitude function
+            amplitudes = self.mps.amplitude(flipped_idx)
+            return pt.tensor([amplitudes[0].item()])
+        else:
+            return self.mps.amplitude(flipped_idx)
 
     # probability of measuring our quantum state in a certain basis vector state
     def prob(self, basis_idx: pt.Tensor) -> pt.Tensor:
@@ -38,27 +43,28 @@ class MPSQuantumState(AbstractQuantumState):
         return self.mps.norm()
 
     # measures state in computational basis
+    # we have to pass a normalized and canonicalised mps
     def measure(self, batch_size: int = 1):
         vis_sampled = pt.zeros(self.qubit_num)
         probs_vis = pt.ones(self.qubit_num)
         # self.mps.canonicalise(self.qubit_num - 1) we already call this in the measurement shadow function
-        part_func = self.mps.norm().real
+        # part_func = self.mps.norm().real # we pass a normalised mps
         for idx_rev in range(self.qubit_num - 1, -1, -1):
             if idx_rev == self.qubit_num - 1:
                 result = self.mps.tensors[idx_rev]
             prob_result = pt.einsum('iaj,ibj->ab', result, self.mps.tensors[idx_rev].conj())
             probs_prev_vis = pt.prod(probs_vis, dim=0)
-            probs = [(pt.abs(prob_result[0, 0]) / part_func) / probs_prev_vis,
-                     (pt.abs(prob_result[1, 1]) / part_func) / probs_prev_vis]
+            probs = [pt.abs(prob_result[0, 0]) / probs_prev_vis,
+                     pt.abs(prob_result[1, 1]) / probs_prev_vis]
             vis_sampled[idx_rev] = pt.multinomial(pt.tensor([probs[0].item(), probs[1].item()]), 1, replacement=True)[
                 0].item()
             probs_vis[idx_rev] = probs[int(vis_sampled[idx_rev].item())]
             if idx_rev == 0:
                 continue
-            # Left -> Right
+            # Top -> Bottom
             result = pt.einsum('ij,kj->ik', result[:, int(vis_sampled[idx_rev].item()), :],
                                self.mps.tensors[idx_rev][:, int(vis_sampled[idx_rev].item()), :].conj())
-            # Top -> Bottom
+            # Left -> Right
             result = pt.einsum('ik,jai->jak', result, self.mps.tensors[idx_rev - 1])
         measurement_idx = 0
         for k in range(0, self.qubit_num):
@@ -83,6 +89,7 @@ class MPSQuantumState(AbstractQuantumState):
         for i in range(meas_num):
             mps_rotated = self.rotate_pauli(meas_bases[i])
             mps_rotated.mps.canonicalise(self.qubit_num - 1)
+            mps_rotated.mps.normalise()
             meas_res_basis = pt.zeros(meas_per_basis, dtype=pt.int)
             prob_basis = pt.zeros(meas_per_basis)
             for j in range(meas_per_basis):
