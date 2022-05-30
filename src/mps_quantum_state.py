@@ -44,7 +44,7 @@ class MPSQuantumState(AbstractQuantumState):
 
     # measures state in computational basis
     # we have to pass a normalized and canonicalised mps
-    def measure(self, batch_size: int = 1):
+    def measure_old(self, batch_size: int = 1):
         vis_sampled = pt.zeros(self.qubit_num)
         probs_vis = pt.ones(self.qubit_num)
         # self.mps.canonicalise(self.qubit_num - 1) we already call this in the measurement shadow function
@@ -71,6 +71,66 @@ class MPSQuantumState(AbstractQuantumState):
             measurement_idx = measurement_idx + int(vis_sampled[k].item()) * (2 ** (self.qubit_num - 1 - k))
         return measurement_idx, pt.prod(probs_vis)
 
+    def measure(self, batch_size):
+        num_samples_tensor = pt.tensor([batch_size])
+        sampled_visibles = [pt.tensor([])]
+        probs_sampled = pt.tensor([1])
+        contraction_results = []
+        for idx_rev in range(self.qubit_num - 1, -1, -1):
+            contr_res_intermed = []
+            for hist in range(len(sampled_visibles)):
+                if idx_rev == self.qubit_num - 1:
+                    result = self.mps.tensors[idx_rev]
+                else:
+                    result = contraction_results[hist]
+                    # Top -> Bottom
+                    result = pt.einsum('ij,kj->ik', result, self.mps.tensors[idx_rev + 1][:, int(
+                        sampled_visibles[hist][(self.qubit_num - 1) - (idx_rev + 1)]), :].conj())
+                    # Left -> Right
+                    result = pt.einsum('ik,jai->jak', result, self.mps.tensors[idx_rev])
+                contr_res_intermed.append(result)
+                prob_result = pt.einsum('iaj,ibj->ab', result, self.mps.tensors[idx_rev].conj())
+                if hist == 0:
+                    result_zero = pt.abs(pt.tensor([prob_result[0, 0].item()]))
+                    result_one = pt.abs(pt.tensor([prob_result[1, 1].item()]))
+                else:
+                    result_zero = pt.cat((result_zero, pt.abs(pt.tensor([prob_result[0, 0].item()]))))
+                    result_one = pt.cat((result_one, pt.abs(pt.tensor([prob_result[1, 1].item()]))))
+
+            probs_in_zero = result_zero / probs_sampled
+            try:
+                distrib = pt.distributions.binomial.Binomial(num_samples_tensor, probs_in_zero)
+            except ValueError:
+                # sometimes the probabilities become a tiny bit bigger than one due to rounding errors
+                for j in range(int(probs_in_zero.size()[0])):
+                    if probs_in_zero[j] >= 1:
+                        probs_in_zero[j] = 1
+                distrib = pt.distributions.binomial.Binomial(num_samples_tensor, probs_in_zero)
+            num_zeros = distrib.sample()
+            num_ones = num_samples_tensor - num_zeros
+            num_samples_tensor = pt.cat((num_zeros, num_ones))
+            sampled_visible_update = []
+            contraction_results = []
+            for j in range(0, len(sampled_visibles)):
+                if num_samples_tensor[j] > 0:
+                    sampled_visible_update.append(pt.cat((sampled_visibles[j], pt.tensor([0]))))
+                    contraction_results.append(contr_res_intermed[j][:, 0, :])
+            for j in range(0, len(sampled_visibles)):
+                if num_samples_tensor[j + len(sampled_visibles)] > 0:
+                    sampled_visible_update.append(pt.cat((sampled_visibles[j], pt.tensor([1]))))
+                    contraction_results.append(contr_res_intermed[j][:, 1, :])
+            sampled_visibles = sampled_visible_update
+            probs_sampled = pt.cat((result_zero, result_one))
+            non_zeros = pt.nonzero(num_samples_tensor, as_tuple=True)
+            num_samples_tensor = num_samples_tensor[non_zeros]
+            probs_sampled = probs_sampled[non_zeros]
+
+        expon = pt.tensor([2]) ** pt.arange(0, self.qubit_num, 1)
+        sampled_indices = []
+        for sampled_visible in sampled_visibles:
+            sampled_indices.append(int(pt.sum(sampled_visible * expon, dim=0).item()))
+        return sampled_indices, probs_sampled
+
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
     def rotate_pauli(self, pauli_string: dict):
         rot_tensors = []
@@ -82,18 +142,16 @@ class MPSQuantumState(AbstractQuantumState):
     def measure_pauli(self, pauli_string: dict, batch_size: int):
         return self.rotate_pauli(pauli_string).measure(batch_size)
 
-    def measurement_shadow(self, meas_num, meas_per_basis):
+    def measurement_shadow(self, meas_num: int, meas_per_basis: int, meas_method: str):
         meas_results = []
         probs = []
+        if
         meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
         for i in range(meas_num):
             mps_rotated = self.rotate_pauli(meas_bases[i])
             mps_rotated.mps.canonicalise(self.qubit_num - 1)
             mps_rotated.mps.normalise()
-            meas_res_basis = pt.zeros(meas_per_basis, dtype=pt.int)
-            prob_basis = pt.zeros(meas_per_basis)
-            for j in range(meas_per_basis):
-                meas_res_basis[j], prob_basis[j] = mps_rotated.measure()
+            meas_res_basis, prob_basis = mps_rotated.measure(meas_per_basis)
             meas_results.append(meas_res_basis)
             probs.append(prob_basis)
         return meas_results, meas_bases, probs
