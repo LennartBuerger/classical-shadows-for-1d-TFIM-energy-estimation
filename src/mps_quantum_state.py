@@ -29,10 +29,9 @@ class MPSQuantumState(AbstractQuantumState):
         bin_flip = bin_flip.to(pt.int)
         flipped_idx = pt.einsum('ba,a->b', bin_flip, powers)
         if flipped_idx.size()[0] == 1:
-            flipped_idx = pt.cat(
-                (flipped_idx, pt.tensor([0])))  # code fails when only one index is passed to amplitude function
+            flipped_idx = pt.cat((flipped_idx, pt.tensor([0])))  # code fails when only one index is passed to amplitude function
             amplitudes = self.mps.amplitude(flipped_idx)
-            return pt.tensor([amplitudes[0].item()])
+            return pt.tensor([amplitudes[0].item()], dtype=pt.cdouble)
         else:
             return self.mps.amplitude(flipped_idx)
 
