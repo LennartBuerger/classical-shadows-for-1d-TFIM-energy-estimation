@@ -54,12 +54,10 @@ class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
             observables = []
             for i in range(0, self.qubit_num):
                 x_arr = [['X', i]]
+                observables.append(x_arr)
                 if i <= self.qubit_num - 2:
                     z_arr = [['Z', i], ['Z', i + 1]]
-                else:
-                    z_arr = None
-                observables.append(x_arr)
-                observables.append(z_arr)
+                    observables.append(z_arr)
         return observables
 
 # we either have to pass psi or measurement, when no measurement=None the method needs psi to do the measurement
@@ -86,7 +84,7 @@ class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
                 energy = energy + self.J * expectation_val
         return energy
 
-    def energy_shadow_mps_modified(self, measurements, probabilities):
+    def energy_shadow_mps_modified(self, measurements, probabilities, meas_method: str):
         observables = []
         for i in range(0, self.qubit_num):
             x_arr = [['X', i]]
@@ -106,9 +104,18 @@ class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
                 else:
                     expectation_val = sum_product / cnt_match * probabilities[j]
                 if i % 2 == 0:
-                    energy = energy + self.h * expectation_val * 3  # weighing with factor 3**locality to counteract the chance of hitting
+                    if meas_method == 'randomized':
+                        energy = energy + self.h * expectation_val * 3 # weighing with factor 3**locality to counteract the chance of hitting
+                    if meas_method == 'derandomized':
+                        energy = energy + self.h * expectation_val * 2
+                        # in principle we have to count the number of times an observable is hit
+                        # and weigh it with the appropriate factor. For the ising hamiltonian this is easy,
+                        # every observable is hit in 50% of the measurements
                 else:
-                    energy = energy + self.J * expectation_val * 3 ** 2
+                    if meas_method == 'randomized':
+                        energy = energy + self.J * expectation_val * 3 ** 2
+                    if meas_method == 'derandomized':
+                        energy = energy + self.J * expectation_val * 2
         energy = energy / pt.sum(probabilities).item()
         return energy
 

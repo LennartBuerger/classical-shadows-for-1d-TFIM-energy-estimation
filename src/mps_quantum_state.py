@@ -2,12 +2,13 @@ import sys
 from pathlib import Path
 
 import torch as pt
+import math
 
 from src.abstract_quantum_state import AbstractQuantumState
 from src import constants
 
 from src.mps import MPS
-from display_data.data_acquisition_shadow import randomized_classical_shadow
+from display_data.data_acquisition_shadow import randomized_classical_shadow, derandomized_classical_shadow
 
 
 class MPSQuantumState(AbstractQuantumState):
@@ -28,7 +29,8 @@ class MPSQuantumState(AbstractQuantumState):
         bin_flip = bin_flip.to(pt.int)
         flipped_idx = pt.einsum('ba,a->b', bin_flip, powers)
         if flipped_idx.size()[0] == 1:
-            flipped_idx = pt.cat((flipped_idx, pt.tensor([0]))) # code fails when only one index is passed to amplitude function
+            flipped_idx = pt.cat(
+                (flipped_idx, pt.tensor([0])))  # code fails when only one index is passed to amplitude function
             amplitudes = self.mps.amplitude(flipped_idx)
             return pt.tensor([amplitudes[0].item()])
         else:
@@ -71,7 +73,9 @@ class MPSQuantumState(AbstractQuantumState):
             measurement_idx = measurement_idx + int(vis_sampled[k].item()) * (2 ** (self.qubit_num - 1 - k))
         return measurement_idx, pt.prod(probs_vis)
 
-    def measure(self, batch_size):
+    def measure(self, batch_size, canonicalise=False):
+        if canonicalise:
+            self.mps.canonicalise(self.qubit_num - 1)
         num_samples_tensor = pt.tensor([batch_size])
         sampled_visibles = [pt.tensor([])]
         probs_sampled = pt.tensor([1])
@@ -142,12 +146,22 @@ class MPSQuantumState(AbstractQuantumState):
     def measure_pauli(self, pauli_string: dict, batch_size: int):
         return self.rotate_pauli(pauli_string).measure(batch_size)
 
-    def measurement_shadow(self, meas_num: int, meas_per_basis: int, meas_method: str):
+    def measurement_shadow(self, meas_num: int, meas_per_basis: int, meas_method: str, observables):
         meas_results = []
         probs = []
-        if
-        meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
-        for i in range(meas_num):
+        if meas_method == 'derandomized':
+            batch_size = 1  # for simple hamiltonians we can simply measure each observable once, but for more
+            # complicated
+            meas_bases = []
+            measurement_procedure_batched = derandomized_classical_shadow(observables, batch_size, self.qubit_num)
+            num_pauli_strings_in_one_batch = len(measurement_procedure_batched)
+            number_of_measurements_for_one_pauli_string = math.ceil(meas_num / num_pauli_strings_in_one_batch)
+            for i in range(0, number_of_measurements_for_one_pauli_string):
+                for j in range(0, num_pauli_strings_in_one_batch):
+                    meas_bases.append(measurement_procedure_batched[j])
+        if meas_method == 'randomized':
+            meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
+        for i in range(len(meas_bases)):
             mps_rotated = self.rotate_pauli(meas_bases[i])
             mps_rotated.mps.canonicalise(self.qubit_num - 1)
             mps_rotated.mps.normalise()
