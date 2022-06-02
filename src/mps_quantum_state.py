@@ -74,6 +74,7 @@ class MPSQuantumState(AbstractQuantumState):
 
     def measure(self, batch_size, canonicalise=False):
         if canonicalise:
+            self.mps.orth_idx = 0
             self.mps.canonicalise(self.qubit_num - 1)
         num_samples_tensor = pt.tensor([batch_size])
         sampled_visibles = [pt.tensor([])]
@@ -107,6 +108,7 @@ class MPSQuantumState(AbstractQuantumState):
                 # sometimes the probabilities become a tiny bit bigger than one due to rounding errors
                 for j in range(int(probs_in_zero.size()[0])):
                     if probs_in_zero[j] >= 1:
+                        print('ValueError: ' + str(probs_in_zero[j]))
                         probs_in_zero[j] = 1
                 distrib = pt.distributions.binomial.Binomial(num_samples_tensor, probs_in_zero)
             num_zeros = distrib.sample()
@@ -162,8 +164,9 @@ class MPSQuantumState(AbstractQuantumState):
             meas_bases = randomized_classical_shadow(meas_num, self.qubit_num)
         for i in range(len(meas_bases)):
             mps_rotated = self.rotate_pauli(meas_bases[i])
-            mps_rotated.mps.canonicalise(self.qubit_num - 1)
             mps_rotated.mps.normalise()
+            mps_rotated.orth_idx = 0
+            mps_rotated.mps.canonicalise(self.qubit_num - 1)
             meas_res_basis, prob_basis = mps_rotated.measure(meas_per_basis)
             meas_results.append(meas_res_basis)
             probs.append(prob_basis)
