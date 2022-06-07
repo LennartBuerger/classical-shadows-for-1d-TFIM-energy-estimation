@@ -123,7 +123,7 @@ class TfimHamiltonianOpenFermion(AbstractHamiltonian, ABC):
         if return_eig_vecs:
             return scipy.sparse.linalg.eigsh(self.to_matrix(), which='SA', k=nr_eigs)
         else:
-            eigenvalues, _ = scipy.sparse.linalg.eigsh(self.to_matrix(), which='SA', k=nr_eigs)
+            eigenvalues = scipy.sparse.linalg.eigsh(self.to_matrix(), which='SA', k=nr_eigs, return_eigenvectors=False)
             return eigenvalues
 
     def ground_state_energy(self) -> pt.double:
