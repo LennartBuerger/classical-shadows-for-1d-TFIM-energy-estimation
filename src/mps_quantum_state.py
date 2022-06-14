@@ -134,7 +134,7 @@ class MPSQuantumState(AbstractQuantumState):
         sampled_indices = []
         for sampled_visible in sampled_visibles:
             sampled_indices.append(int(pt.sum(sampled_visible * expon, dim=0).item()))
-        return sampled_indices, probs_sampled
+        return sampled_indices, probs_sampled, num_samples_tensor
 
     # takes a pauli string and rotates to the basis given by this string, returns a new instance of our quantum state
     def rotate_pauli(self, pauli_string: dict):
@@ -167,7 +167,7 @@ class MPSQuantumState(AbstractQuantumState):
             mps_rotated.mps.normalise()
             mps_rotated.orth_idx = 0
             mps_rotated.mps.canonicalise(self.qubit_num - 1)
-            meas_res_basis, prob_basis = mps_rotated.measure(meas_per_basis)
+            meas_res_basis, prob_basis, num_samples = mps_rotated.measure(meas_per_basis)
             meas_results.append(meas_res_basis)
             probs.append(prob_basis)
         return meas_results, meas_bases, probs
