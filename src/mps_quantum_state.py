@@ -45,7 +45,7 @@ class MPSQuantumState(AbstractQuantumState):
 
     # measures state in computational basis
     # we have to pass a normalized and canonicalised mps
-    def measure_old(self, batch_size: int = 1):
+    def measure_one_sample(self, batch_size: int = 1):
         vis_sampled = pt.zeros(self.qubit_num)
         probs_vis = pt.ones(self.qubit_num)
         # self.mps.canonicalise(self.qubit_num - 1) we already call this in the measurement shadow function
