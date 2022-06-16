@@ -169,7 +169,8 @@ class MPSQuantumState(AbstractQuantumState):
             mps_rotated.mps.canonicalise(self.qubit_num - 1)
             meas_res_basis, prob_basis, num_samples = mps_rotated.measure(meas_per_basis)
             meas_results.append(meas_res_basis)
-            probs.append(prob_basis)
+            probs.append(num_samples / meas_per_basis)
+            # probs are not the exact probs, but the probs estimated through sampling
         return meas_results, meas_bases, probs
 
     # apply a string of single qubit clifford gates
