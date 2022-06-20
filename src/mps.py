@@ -5,7 +5,8 @@ import torch as pt
 
 from typing import Tuple, Union, List, Callable
 
-from .constants import BASE_INT_TYPE, BASE_COMPLEX_TYPE
+from .constants import BASE_INT_TYPE, BASE_COMPLEX_TYPE, BASE_REAL_TYPE
+
 from .constants import DEFAULT_INIT_SCALE
 
 from .svd import pt_H, trunc_svd, robust_qr
